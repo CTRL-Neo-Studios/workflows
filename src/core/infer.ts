@@ -28,7 +28,11 @@ export interface Constraint {
   supOf: Instance;
 }
 
-const MAX_ROUNDS = 64;
+/**
+ * Rounds allowed beyond one per variable. A round moves a solution one edge further, so a chain of n generic
+ * nodes legitimately needs n rounds; only growth past that is a type that never settles.
+ */
+const EXTRA_ROUNDS = 64;
 
 /** Substitutes pins and current solutions. Unsolved variables stay as they are. */
 export function resolve(term: TypeTerm, inst: Instance): TypeTerm {
@@ -40,7 +44,9 @@ export function resolve(term: TypeTerm, inst: Instance): TypeTerm {
 }
 
 function mentions(term: TypeTerm, name: string): boolean {
-  return term.kind === "var" ? term.name === name : (term.args ?? []).some((arg) => mentions(arg, name));
+  return term.kind === "var"
+    ? term.name === name
+    : (term.args ?? []).some((arg) => mentions(arg, name));
 }
 
 interface Bounds {
@@ -54,9 +60,14 @@ interface Bounds {
  * reading other variables through their current solutions, so the result doesn't depend on constraint order.
  * Phase 1 uses lower bounds only; phase 2 also solves variables that have only upper bounds.
  */
-export function solve(types: TypeTable, instances: readonly Instance[], constraints: readonly Constraint[]): Diagnostic[] {
+export function solve(
+  types: TypeTable,
+  instances: readonly Instance[],
+  constraints: readonly Constraint[],
+): Diagnostic[] {
   const free: { inst: Instance; v: TypeVar }[] = [];
-  for (const inst of instances) for (const v of inst.vars.values()) if (!v.pin) free.push({ inst, v });
+  for (const inst of instances)
+    for (const v of inst.vars.values()) if (!v.pin) free.push({ inst, v });
 
   const errors = new Map<TypeVar, Diagnostic>();
   let rounds = 0;
@@ -73,7 +84,8 @@ export function solve(types: TypeTable, instances: readonly Instance[], constrai
         if (b?.infinite) {
           errors.set(v, error("E_INFINITE_TYPE", `${v.name} would contain itself`, at));
         } else if (b?.lower.size) {
-          next = [...b.lower.values()].reduce<TypeTerm | undefined>((acc, x) => acc && types.join(acc, x));
+          const [first, ...rest] = b.lower.values();
+          next = rest.reduce<TypeTerm | undefined>((acc, x) => acc && types.join(acc, x), first);
           if (!next) {
             const list = [...b.lower.keys()].join(", ");
             errors.set(v, error("E_NO_COMMON_TYPE", `${v.name}: no common type for ${list}`, at));
@@ -92,10 +104,14 @@ export function solve(types: TypeTable, instances: readonly Instance[], constrai
         else delete v.solution;
       }
       if (!changed.length) break;
-      if (++rounds >= MAX_ROUNDS) {
+      // ponytail: O(rounds × constraints); a worklist keyed by variable if documents reach ~10k generic nodes.
+      if (++rounds >= EXTRA_ROUNDS + free.length) {
         for (const { inst, v } of changed) {
           delete v.solution;
-          errors.set(v, error("E_INFINITE_TYPE", `${v.name} never settles`, { node: inst.node.id }));
+          errors.set(
+            v,
+            error("E_INFINITE_TYPE", `${v.name} never settles`, { node: inst.node.id }),
+          );
         }
         return [...errors.values()];
       }
@@ -120,7 +136,13 @@ function collect(
     return b;
   };
   /** `v (of inst) <dir> other (of otherInst)`, kept only once `other` is ground. */
-  const add = (v: TypeVar, inst: Instance, dir: "lower" | "upper", other: TypeTerm, otherInst: Instance): void => {
+  const add = (
+    v: TypeVar,
+    inst: Instance,
+    dir: "lower" | "upper",
+    other: TypeTerm,
+    otherInst: Instance,
+  ): void => {
     if (otherInst === inst && mentions(other, v.name)) {
       of(v).infinite = true;
       return;

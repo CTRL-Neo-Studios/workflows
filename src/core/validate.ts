@@ -72,11 +72,9 @@ function outputPort(inst: Instance, name: string): Port | undefined {
 /** Every data input, variadic ones included, with whether it needs a value. */
 function dataInputs(inst: Instance): [string, DataPortDef, boolean][] {
   const m = inst.manifest;
-  const ports: [string, DataPortDef, boolean][] = Object.entries(m.inputs ?? {}).map(([name, def]) => [
-    name,
-    def,
-    def.required === true,
-  ]);
+  const ports: [string, DataPortDef, boolean][] = Object.entries(m.inputs ?? {}).map(
+    ([name, def]) => [name, def, def.required === true],
+  );
   const v = m.variadic;
   if (v?.kind === "input" && v.type) {
     // Variadic inputs have no default, so each one needs an edge or a literal.
@@ -94,6 +92,15 @@ function firstBadKey(types: TypeTable, term: TypeTerm): TypeTerm | undefined {
     if (bad) return bad;
   }
   return undefined;
+}
+
+/** Records the port as used; false if it already was. */
+function claim(used: Map<Instance, Set<string>>, inst: Instance, port: string): boolean {
+  const ports = used.get(inst) ?? new Set<string>();
+  used.set(inst, ports);
+  if (ports.has(port)) return false;
+  ports.add(port);
+  return true;
 }
 
 /** Edges that close a cycle, found by an iterative DFS (graphs are untrusted, so no recursion). */
@@ -135,7 +142,9 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
   const types = lang.types;
   const diagnostics: Diagnostic[] = [];
   const report = (code: DiagnosticCode, message: string, at?: DiagnosticLocation): void => {
-    diagnostics.push(at ? { code, severity: "error", message, at } : { code, severity: "error", message });
+    diagnostics.push(
+      at ? { code, severity: "error", message, at } : { code, severity: "error", message },
+    );
   };
   const instances = new Map<string, Instance>();
   const convertedEdges = new Set<string>();
@@ -157,7 +166,10 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     return analysis;
   }
   if (doc.language.id !== manifest.language.id) {
-    report("E_LANGUAGE_MISMATCH", `Document is for '${doc.language.id}', not '${manifest.language.id}'`);
+    report(
+      "E_LANGUAGE_MISMATCH",
+      `Document is for '${doc.language.id}', not '${manifest.language.id}'`,
+    );
     return analysis;
   }
   if (doc.language.version > manifest.language.version) {
@@ -179,7 +191,8 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
   const dupEdges = new Set<EdgeInstance>();
   for (const { id, graph } of graphs) {
     for (const node of graph.nodes) {
-      if (graphOf.has(node.id)) report("E_DUPLICATE_ID", `Duplicate node id '${node.id}'`, { node: node.id });
+      if (graphOf.has(node.id))
+        report("E_DUPLICATE_ID", `Duplicate node id '${node.id}'`, { node: node.id });
       else graphOf.set(node.id, id);
     }
     for (const edge of graph.edges) {
@@ -206,7 +219,11 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
       continue;
     }
     if (node.version < m.version) {
-      report("E_NODE_OUTDATED", `${node.type} v${node.version} needs migrating to v${m.version}`, at);
+      report(
+        "E_NODE_OUTDATED",
+        `${node.type} v${node.version} needs migrating to v${m.version}`,
+        at,
+      );
       continue;
     }
     const v = m.variadic;
@@ -215,13 +232,17 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
       report("E_VARIADIC_COUNT", `${node.type} has no variadic ports`, at);
       continue;
     }
-    if (v && (!Number.isInteger(n) || n < (v.min ?? 0) || n > Math.min(v.max ?? Infinity, MAX_VARIADIC))) {
+    if (
+      v &&
+      (!Number.isInteger(n) || n < (v.min ?? 0) || n > Math.min(v.max ?? Infinity, MAX_VARIADIC))
+    ) {
       report("E_VARIADIC_COUNT", `Variadic count ${n} is out of range for ${node.type}`, at);
       continue;
     }
 
     const vars = new Map<string, TypeVar>();
-    for (const p of m.typeParams ?? []) vars.set(p.name, p.bound ? { name: p.name, bound: p.bound } : { name: p.name });
+    for (const p of m.typeParams ?? [])
+      vars.set(p.name, p.bound ? { name: p.name, bound: p.bound } : { name: p.name });
     for (const [name, term] of Object.entries(node.typeArgs ?? {})) {
       const tv = vars.get(name);
       if (!tv) {
@@ -230,10 +251,15 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
       }
       const problem = deeperThan(term, MAX_TYPE_DEPTH)
         ? `Type argument ${name} is nested deeper than ${MAX_TYPE_DEPTH}`
-        : (types.check(term) ?? (isGround(term) ? undefined : `Type argument ${name} must be concrete`));
+        : (types.check(term) ??
+          (isGround(term) ? undefined : `Type argument ${name} must be concrete`));
       if (problem) report("E_INVALID_TYPE", problem, at);
       else if (tv.bound && !types.isSubtype(term, tv.bound)) {
-        report("E_TYPE_MISMATCH", `${name} = ${formatType(term)} is not a ${formatType(tv.bound)}`, at);
+        report(
+          "E_TYPE_MISMATCH",
+          `${name} = ${formatType(term)} is not a ${formatType(tv.bound)}`,
+          at,
+        );
       } else tv.pin = term;
     }
     instances.set(node.id, { node, manifest: m, variadic: n, vars });
@@ -244,31 +270,37 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
   const dataEdges: DataEdge[] = [];
   const usedExecOut = new Map<Instance, Set<string>>();
   const usedDataIn = new Map<Instance, Set<string>>();
-  /** Records the port as used; false if it already was. */
-  const claim = (used: Map<Instance, Set<string>>, inst: Instance, port: string): boolean => {
-    const ports = used.get(inst) ?? new Set<string>();
-    used.set(inst, ports);
-    if (ports.has(port)) return false;
-    ports.add(port);
-    return true;
-  };
   for (const edge of doc.program.graph.edges) {
     if (dupEdges.has(edge)) continue;
     const at = { edge: edge.id };
     let ends = true;
     for (const ref of [edge.from, edge.to]) {
       const owner = graphOf.get(ref.node);
-      if (owner === undefined) report("E_UNKNOWN_REF", `Edge ${edge.id} points at missing node '${ref.node}'`, at);
-      else if (owner !== "main") report("E_CROSS_GRAPH", `Edge ${edge.id} leaves the main graph`, at);
+      if (owner === undefined)
+        report("E_UNKNOWN_REF", `Edge ${edge.id} points at missing node '${ref.node}'`, at);
+      else if (owner !== "main")
+        report("E_CROSS_GRAPH", `Edge ${edge.id} leaves the main graph`, at);
       ends &&= owner === "main";
     }
     const from = instances.get(edge.from.node);
     const to = instances.get(edge.to.node);
-    if (!ends || !from || !to) continue;
+    if (!ends || !from || !to) {
+      // The source was already reported; still count the target as wired so it gets no follow-on errors.
+      if (ends && to) claim(usedDataIn, to, edge.to.port);
+      continue;
+    }
     const out = outputPort(from, edge.from.port);
     const inp = inputPort(to, edge.to.port);
-    if (!out) report("E_UNKNOWN_PORT", `${edge.from.node} has no output '${edge.from.port}'`, { ...at, ...edge.from });
-    if (!inp) report("E_UNKNOWN_PORT", `${edge.to.node} has no input '${edge.to.port}'`, { ...at, ...edge.to });
+    if (!out)
+      report("E_UNKNOWN_PORT", `${edge.from.node} has no output '${edge.from.port}'`, {
+        ...at,
+        ...edge.from,
+      });
+    if (!inp)
+      report("E_UNKNOWN_PORT", `${edge.to.node} has no input '${edge.to.port}'`, {
+        ...at,
+        ...edge.to,
+      });
     if (!out || !inp) continue;
     if (out.kind !== inp.kind) {
       report("E_KIND_MISMATCH", `Edge ${edge.id} connects ${out.kind} to ${inp.kind}`, at);
@@ -288,14 +320,22 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
   for (const e of backEdges(instances.values(), execEdges)) {
     report("E_EXEC_CYCLE", `Exec edge ${e.edge.id} closes a cycle`, { edge: e.edge.id });
   }
-  const evaluated = (inst: Instance): boolean => inst.manifest.mode === "pure" || inst.manifest.mode === "once";
-  const pureEdges = dataEdges.filter((e) => evaluated(e.from) && evaluated(e.to));
+  const pureEdges = dataEdges.filter((e) =>
+    [e.from, e.to].every((i) => i.manifest.mode === "pure" || i.manifest.mode === "once"),
+  );
   for (const e of backEdges(instances.values(), pureEdges)) {
-    report("E_DATA_CYCLE", `Data edge ${e.edge.id} closes a cycle through pure nodes`, { edge: e.edge.id });
+    report("E_DATA_CYCLE", `Data edge ${e.edge.id} closes a cycle through pure nodes`, {
+      edge: e.edge.id,
+    });
   }
 
   // Inference and checks (§3.4).
-  const constraints: Constraint[] = dataEdges.map((e) => ({ sub: e.out.type, subOf: e.from, sup: e.in.type, supOf: e.to }));
+  const constraints: Constraint[] = dataEdges.map((e) => ({
+    sub: e.out.type,
+    subOf: e.from,
+    sup: e.in.type,
+    supOf: e.to,
+  }));
   diagnostics.push(...solve(types, [...instances.values()], constraints));
 
   for (const { edge, from, out, to, in: inp } of dataEdges) {
@@ -303,27 +343,38 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     const b = resolve(inp.type, to);
     if (!isGround(a) || !isGround(b) || types.isSubtype(a, b)) continue;
     if (lang.conversions.has(conversionKey(a, b))) convertedEdges.add(edge.id);
-    else report("E_TYPE_MISMATCH", `${edge.id}: ${formatType(a)} → ${formatType(b)}`, { edge: edge.id });
+    else
+      report("E_TYPE_MISMATCH", `${edge.id}: ${formatType(a)} → ${formatType(b)}`, {
+        edge: edge.id,
+      });
   }
 
   for (const inst of instances.values()) {
     const at = { node: inst.node.id };
     for (const v of inst.vars.values()) {
       if (v.bound && v.solution && !types.isSubtype(v.solution, v.bound)) {
-        report("E_TYPE_MISMATCH", `${v.name} = ${formatType(v.solution)} is not a ${formatType(v.bound)}`, at);
+        report(
+          "E_TYPE_MISMATCH",
+          `${v.name} = ${formatType(v.solution)} is not a ${formatType(v.bound)}`,
+          at,
+        );
       }
     }
     const ports = [...dataInputs(inst), ...Object.entries(inst.manifest.outputs ?? {})];
     for (const [port, def] of ports) {
       const key = firstBadKey(types, resolve(def.type, inst));
-      if (key) report("E_KEY_TYPE", `${formatType(key)} can't be a Dictionary key`, { ...at, port });
+      if (key)
+        report("E_KEY_TYPE", `${formatType(key)} can't be a Dictionary key`, { ...at, port });
     }
 
     // Literals, defaults and required inputs (§3.4 step 6, §8.4 order: edge, literal, default).
     const literals = inst.node.literals ?? {};
     for (const port of Object.keys(literals)) {
       if (inputPort(inst, port)?.kind !== "data") {
-        report("E_UNKNOWN_PORT", `${inst.node.type} has no data input '${port}' for a literal`, { ...at, port });
+        report("E_UNKNOWN_PORT", `${inst.node.type} has no data input '${port}' for a literal`, {
+          ...at,
+          port,
+        });
       }
     }
     const connected = usedDataIn.get(inst);
@@ -333,18 +384,26 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
       const type = resolve(def.type, inst);
       const check = (value: Json, what: string): void => {
         if (!isGround(type)) {
-          report("E_UNRESOLVED_TYPE", `${inst.node.id}.${port}: type ${formatType(type)} is unresolved`, here);
+          report(
+            "E_UNRESOLVED_TYPE",
+            `${inst.node.id}.${port}: type ${formatType(type)} is unresolved`,
+            here,
+          );
           return;
         }
         const schema = types.schemaFor(type);
-        const problem = schema ? validateValue(schema, value) : `${formatType(type)} takes no literals`;
-        if (problem) report("E_LITERAL_INVALID", `${inst.node.id}.${port} ${what}: ${problem}`, here);
+        const problem = schema
+          ? validateValue(schema, value)
+          : `${formatType(type)} takes no literals`;
+        if (problem)
+          report("E_LITERAL_INVALID", `${inst.node.id}.${port} ${what}: ${problem}`, here);
       };
       if (Object.hasOwn(literals, port)) check(literals[port]!, "literal");
       // Ground defaults were checked with the manifest; generic ones only once T is known.
       else if (def.default !== undefined) {
         if (!isGround(def.type) && isGround(type)) check(def.default, "default");
-      } else if (required) report("E_REQUIRED_INPUT", `${inst.node.id}.${port} needs a value`, here);
+      } else if (required)
+        report("E_REQUIRED_INPUT", `${inst.node.id}.${port} needs a value`, here);
     }
   }
 
