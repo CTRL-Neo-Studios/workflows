@@ -4,14 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/ts-lib-template.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/index.test.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/index.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tsdown.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tsdown.config.ts" afterDir="false" />
+    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="chore: Add core type system and expose it via `./core` export">
+      <change beforePath="$PROJECT_DIR$/src/core/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/types.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,23 +38,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.966576054646478" />
-      <entry key="MS500" value="2.6815954537367763" />
-      <entry key="S2" value="2.9124585854352443" />
-      <entry key="S5" value="2.964290866151219" />
-      <entry key="S10" value="2.9820277263293615" />
-      <entry key="S30" value="2.993982870326616" />
-      <entry key="S60" value="2.996988125176857" />
-      <entry key="M2" value="2.99849323407479" />
-      <entry key="M5" value="2.999397094656316" />
-      <entry key="M10" value="2.9996985141550248" />
-      <entry key="M15" value="2.999799002064071" />
-      <entry key="M30" value="2.9998994973455275" />
-      <entry key="H1" value="2.9999497477510992" />
-      <entry key="H2" value="2.999974873645129" />
-      <entry key="H4" value="2.9999874367649584" />
-      <entry key="D1" value="2.999997906119492" />
-      <entry key="W1" value="2.9999997008740173" />
+      <entry key="MS100" value="1.0847877704654794" />
+      <entry key="MS500" value="1.6104732563345672" />
+      <entry key="S2" value="1.8839275310636712" />
+      <entry key="S5" value="1.9518459454840758" />
+      <entry key="S10" value="1.9756259249753851" />
+      <entry key="S30" value="1.9918083890611853" />
+      <entry key="S60" value="1.995895772188124" />
+      <entry key="M2" value="1.9979470003551336" />
+      <entry key="M5" value="2.007522503356201" />
+      <entry key="M10" value="2.1578104945196848" />
+      <entry key="M15" value="2.4216338400026425" />
+      <entry key="M30" value="3.124906892859707" />
+      <entry key="H1" value="3.8370846676795485" />
+      <entry key="H2" value="4.34761553805483" />
+      <entry key="H4" value="4.653838442046953" />
+      <entry key="D1" value="4.939319783765024" />
+      <entry key="W1" value="4.991255305503264" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -81,23 +76,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.9335914169523383" />
-      <entry key="MS500" value="2.67010020683867" />
-      <entry key="S2" value="2.9091573334103717" />
-      <entry key="S5" value="2.962931466680414" />
-      <entry key="S10" value="2.9813413519761696" />
-      <entry key="S30" value="2.993752577471059" />
-      <entry key="S60" value="2.996872789928158" />
-      <entry key="M2" value="2.9984355191589085" />
-      <entry key="M5" value="2.999373997328932" />
-      <entry key="M10" value="2.999686963596905" />
-      <entry key="M15" value="2.999791301270938" />
-      <entry key="M30" value="2.9998956467384184" />
-      <entry key="H1" value="2.999947822394905" />
-      <entry key="H2" value="2.999973910953872" />
-      <entry key="H4" value="2.99998695541604" />
-      <entry key="D1" value="2.9999978258942157" />
-      <entry key="W1" value="2.999999689413252" />
+      <entry key="MS100" value="1.0607541635520477" />
+      <entry key="MS500" value="1.6012662950697352" />
+      <entry key="S2" value="1.8810521847486996" />
+      <entry key="S5" value="1.9506387496223159" />
+      <entry key="S10" value="1.9750123353865368" />
+      <entry key="S30" value="1.9916015924375383" />
+      <entry key="S60" value="1.9957920875873436" />
+      <entry key="M2" value="1.9978950862364675" />
+      <entry key="M5" value="2.007501656199213" />
+      <entry key="M10" value="2.1577994909479776" />
+      <entry key="M15" value="2.4216258267297204" />
+      <entry key="M30" value="3.124901983361377" />
+      <entry key="H1" value="3.83708175581376" />
+      <entry key="H2" value="4.347613918280568" />
+      <entry key="H4" value="4.653837583023012" />
+      <entry key="D1" value="4.939319632959618" />
+      <entry key="W1" value="4.991255283761215" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
@@ -110,11 +105,13 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "git-widget-placeholder": "dev",
     "javascript.preferred.runtime.type.id": "bun",
@@ -123,7 +120,8 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "bun",
-    "settings.editor.selected.configurable": "editor.preferences.inline.completion"
+    "settings.editor.selected.configurable": "editor.preferences.inline.completion",
+    "ts.external.directory.path": "/Users/administrator/Documents/WebStorm Projects/workflows/node_modules/@typescript/typescript-darwin-arm64/lib"
   }
 }]]></component>
   <component name="SharedIndexes">
@@ -140,11 +138,24 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1793496424936</updated>
-      <workItem from="1793496425937" duration="609000" />
+      <workItem from="1793496425937" duration="948000" />
     </task>
+    <task id="LOCAL-00001" summary="chore: Add core type system and expose it via `./core` export">
+      <option name="closed" value="true" />
+      <created>1793498986366</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1793498986366</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="chore: Add core type system and expose it via `./core` export" />
+    <option name="LAST_COMMIT_MESSAGE" value="chore: Add core type system and expose it via `./core` export" />
   </component>
 </project>

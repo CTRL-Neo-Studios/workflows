@@ -1,3 +1,5 @@
+import { checkTemplate, instantiate, type SchemaTemplate } from "./schema";
+
 /** A type expression (§3.1). `con` applies a type constructor; `var` is a type variable. */
 export type TypeTerm =
   | { kind: "con"; id: string; args?: TypeTerm[] }
@@ -5,9 +7,6 @@ export type TypeTerm =
 
 /** `out` = covariant (read-only position), `inv` = invariant. */
 export type Variance = "out" | "inv";
-
-/** A JSON Schema subset. `{ $param: 'T' }` is replaced by the schema of the type bound to T. */
-export type SchemaTemplate = Record<string, unknown>;
 
 export interface TypeDef {
   id: string;
@@ -44,16 +43,22 @@ export function termEquals(a: TypeTerm, b: TypeTerm): boolean {
 
 export const BUILTIN_TYPES: readonly TypeDef[] = [
   { id: "any" },
-  { id: "string", key: true },
-  { id: "number", key: true },
-  { id: "boolean", key: true },
-  { id: "List", params: [{ name: "T", variance: "out" }] },
+  { id: "string", key: true, schema: { type: "string" } },
+  { id: "number", key: true, schema: { type: "number" } },
+  { id: "boolean", key: true, schema: { type: "boolean" } },
+  {
+    id: "List",
+    params: [{ name: "T", variance: "out" }],
+    schema: { type: "array", items: { $param: "T" } },
+  },
   {
     id: "Dictionary",
     params: [
       { name: "K", variance: "inv" },
       { name: "V", variance: "out" },
     ],
+    // Only for K = string (see schemaFor); other key types make the Dictionary opaque.
+    schema: { type: "object", additionalProperties: { $param: "V" } },
   },
 ];
 
@@ -72,6 +77,10 @@ export class TypeTable {
       this.#defs.set(def.id, def);
     }
     for (const def of this.#defs.values()) {
+      if (def.schema) {
+        const error = checkTemplate(def.schema, def.params?.map((p) => p.name) ?? []);
+        if (error) throw new Error(`'${def.id}' ${error}`);
+      }
       const parent = def.extends;
       if (!parent) continue;
       if (def.id === "any") throw new Error(`'any' can't extend another type`);
@@ -165,5 +174,21 @@ export class TypeTable {
   isKey(term: TypeTerm): boolean {
     if (term.kind !== "con" || term.args?.length) return false;
     return this.#chains.get(term.id)?.some((id) => this.#defs.get(id)?.key) ?? false;
+  }
+
+  /**
+   * The literal schema of a ground type, `$param`s filled in. `undefined` = opaque: the type, or a type
+   * argument its schema references, has no schema. Schemas aren't inherited through `extends`.
+   */
+  schemaFor(term: TypeTerm): SchemaTemplate | undefined {
+    if (term.kind === "var") return undefined;
+    const def = this.#defs.get(term.id);
+    if (!def?.schema) return undefined;
+    const key = term.args?.[0];
+    if (term.id === "Dictionary" && !(key && termEquals(key, t("string")))) return undefined;
+    return instantiate(def.schema, (name) => {
+      const arg = term.args?.[def.params?.findIndex((p) => p.name === name) ?? -1];
+      return arg && this.schemaFor(arg);
+    });
   }
 }

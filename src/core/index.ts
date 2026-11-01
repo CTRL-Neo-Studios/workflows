@@ -1,3 +1,4 @@
+export type { Json, SchemaTemplate } from "./schema";
 export {
   BUILTIN_TYPES,
   isGround,
@@ -5,7 +6,6 @@ export {
   termEquals,
   tvar,
   TypeTable,
-  type SchemaTemplate,
   type TypeDef,
   type TypeTerm,
   type Variance,
