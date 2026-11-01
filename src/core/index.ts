@@ -1,6 +1,45 @@
+export type {
+  DocumentV1,
+  EdgeInstance,
+  FunctionDecl,
+  Graph,
+  Group,
+  NodeInstance,
+  PortRef,
+  Program,
+  VariableDecl,
+  View,
+} from "./document";
+export {
+  defineLanguage,
+  LanguageBuilder,
+  type ConversionImpl,
+  type DocumentMigration,
+  type ExecContext,
+  type ExecRun,
+  type Language,
+  type LanguageOptions,
+  type NodeDef,
+  type NodeImpl,
+  type NodeMigration,
+  type PureContext,
+  type PureRun,
+} from "./language";
+export {
+  conversionKey,
+  type CapabilityDef,
+  type ConversionDef,
+  type DataPortDef,
+  type LanguageManifest,
+  type NodeManifest,
+  type NodeMode,
+  type TypeParamDef,
+  type VariadicDef,
+} from "./manifest";
 export type { Json, SchemaTemplate } from "./schema";
 export {
   BUILTIN_TYPES,
+  formatType,
   isGround,
   t,
   termEquals,

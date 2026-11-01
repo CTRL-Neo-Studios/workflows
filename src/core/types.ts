@@ -41,6 +41,12 @@ export function termEquals(a: TypeTerm, b: TypeTerm): boolean {
   return a.id === b.id && aa.length === ba.length && aa.every((x, i) => termEquals(x, ba[i]!));
 }
 
+/** `List<vertex.File>`, `Dictionary<string, T>`. */
+export function formatType(term: TypeTerm): string {
+  if (term.kind === "var") return term.name;
+  return term.args?.length ? `${term.id}<${term.args.map(formatType).join(", ")}>` : term.id;
+}
+
 export const BUILTIN_TYPES: readonly TypeDef[] = [
   { id: "any" },
   { id: "string", key: true, schema: { type: "string" } },
