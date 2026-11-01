@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/ts-lib-template.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/index.test.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/index.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsdown.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tsdown.config.ts" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="15" />
+    <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Type-32"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/CTRL-Neo-Studios/workflows-scripting-engine.git",
+    "accountId": "f27235e2-cd26-4f80-9812-47f90fe3b741"
+  }
+}]]></component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.966576054646478" />
+      <entry key="MS500" value="2.6815954537367763" />
+      <entry key="S2" value="2.9124585854352443" />
+      <entry key="S5" value="2.964290866151219" />
+      <entry key="S10" value="2.9820277263293615" />
+      <entry key="S30" value="2.993982870326616" />
+      <entry key="S60" value="2.996988125176857" />
+      <entry key="M2" value="2.99849323407479" />
+      <entry key="M5" value="2.999397094656316" />
+      <entry key="M10" value="2.9996985141550248" />
+      <entry key="M15" value="2.999799002064071" />
+      <entry key="M30" value="2.9998994973455275" />
+      <entry key="H1" value="2.9999497477510992" />
+      <entry key="H2" value="2.999974873645129" />
+      <entry key="H4" value="2.9999874367649584" />
+      <entry key="D1" value="2.999997906119492" />
+      <entry key="W1" value="2.9999997008740173" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="1.9335914169523383" />
+      <entry key="MS500" value="2.67010020683867" />
+      <entry key="S2" value="2.9091573334103717" />
+      <entry key="S5" value="2.962931466680414" />
+      <entry key="S10" value="2.9813413519761696" />
+      <entry key="S30" value="2.993752577471059" />
+      <entry key="S60" value="2.996872789928158" />
+      <entry key="M2" value="2.9984355191589085" />
+      <entry key="M5" value="2.999373997328932" />
+      <entry key="M10" value="2.999686963596905" />
+      <entry key="M15" value="2.999791301270938" />
+      <entry key="M30" value="2.9998956467384184" />
+      <entry key="H1" value="2.999947822394905" />
+      <entry key="H2" value="2.999973910953872" />
+      <entry key="H4" value="2.99998695541604" />
+      <entry key="D1" value="2.9999978258942157" />
+      <entry key="W1" value="2.999999689413252" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 7
+}]]></component>
+  <component name="ProjectId" id="3LU6iH3xcYo0TSMgbaa8Pfjz2Fj" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "dev",
+    "javascript.preferred.runtime.type.id": "bun",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "bun",
+    "settings.editor.selected.configurable": "editor.preferences.inline.completion"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-4abd2a77f808-JavaScript-WS-262.10968.77" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="" />
+      <created>1793496424936</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1793496424936</updated>
+      <workItem from="1793496425937" duration="609000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

@@ -1,7 +1,8 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: "src/index.ts",
+  entry: { "core/index": "src/core/index.ts" },
   dts: true,
-  exports: true,
+  // Hand-written in package.json: with one entry tsdown maps it to "." instead of "./core".
+  exports: false,
 });

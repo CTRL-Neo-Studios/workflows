@@ -1,5 +1,5 @@
 {
-  "name": "workflows",
+  "name": "@type32/workflows",
   "version": "0.0.0",
   "description": "Workflows Scripting Engine",
   "license": "MIT",
@@ -8,9 +8,8 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./dist/index.mjs",
+    "./core": "./dist/core/index.mjs",
     "./package.json": "./package.json"
   },
   "scripts": {
