@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import UAlert from "@nuxt/ui/components/Alert.vue";
+import UBadge from "@nuxt/ui/components/Badge.vue";
+import UCard from "@nuxt/ui/components/Card.vue";
+import UIcon from "@nuxt/ui/components/Icon.vue";
+import UInputNumber from "@nuxt/ui/components/InputNumber.vue";
+import USelect from "@nuxt/ui/components/Select.vue";
+import UTooltip from "@nuxt/ui/components/Tooltip.vue";
 import { Handle, Position, type ValidConnectionFunc } from "@vue-flow/core";
 import { computed, inject } from "vue";
 import { formatType, isGround, t, type DataPortDef, type Json, type TypeTerm } from "../core";
 import { CANVAS, handleId, portOf, type WidgetSlotProps } from "./editor";
-import { formatValue, modeColor, typeColor, typeShape } from "./theme";
+import { formatValue, MODE_STYLES, typeColor, typeShape } from "./theme";
 import WorkflowWidget from "./WorkflowWidget.vue";
 
 const { id, selected = false } = defineProps<{ id: string; selected?: boolean }>();
@@ -18,7 +25,7 @@ const ports = computed(() => editor.ports(id));
 const manifest = computed(
   () => ports.value?.manifest ?? editor.manifest.nodes.find((m) => m.type === node.value?.type),
 );
-const mode = computed(() => manifest.value?.mode ?? "exec");
+const style = computed(() => MODE_STYLES[manifest.value?.mode ?? "exec"]);
 const problems = computed(() => editor.problems.value.nodes.get(id) ?? []);
 const trace = computed(() => editor.traced.value.nodes.get(id));
 const edges = computed(() => editor.graph.value.edges);
@@ -28,6 +35,15 @@ const wiredIn = computed(
 const wiredOut = computed(
   () => new Set(edges.value.filter((e) => e.from.node === id).map((e) => e.from.port)),
 );
+
+// The card's ring carries the node's state; later entries win.
+const ring = computed(() => {
+  if (trace.value?.fault) return "ring-2 ring-error shadow-lg shadow-error/25";
+  if (selected) return "ring-2 ring-primary";
+  if (problems.value.length) return "ring-error";
+  if (trace.value?.runs) return "ring-success shadow-lg shadow-success/20";
+  return "";
+});
 
 const typeIn = (port: string): TypeTerm | undefined => editor.analysis.value.typeOf(id, port, "in");
 const typeOut = (port: string): TypeTerm | undefined =>
@@ -55,20 +71,26 @@ function widget(port: string, def: DataPortDef): WidgetSlotProps {
 }
 
 // Pins offered for type parameters: param-less types; a pin to anything else is shown as-is.
-const groundTypes = computed(() => [
-  "string",
-  "number",
-  "boolean",
-  "any",
-  ...editor.manifest.types.filter((d) => !d.params?.length).map((d) => d.id),
-]);
-const pinned = (name: string): string => {
+// Select items can't use an empty value, so `*` stands for "inferred".
+const AUTO = "*";
+function pinItems(name: string): { label: string; value: string }[] {
+  const ids = [
+    "string",
+    "number",
+    "boolean",
+    "any",
+    ...editor.manifest.types.filter((d) => !d.params?.length).map((d) => d.id),
+  ];
+  const current = pinned(name);
+  if (current !== AUTO && !ids.includes(current)) ids.unshift(current);
+  return [{ label: "auto", value: AUTO }, ...ids.map((x) => ({ label: x, value: x }))];
+}
+function pinned(name: string): string {
   const term = node.value?.typeArgs?.[name];
-  return term ? formatType(term) : "";
-};
-function pin(name: string, event: Event): void {
-  const value = (event.target as HTMLSelectElement).value;
-  editor.setTypeArg(id, name, value ? t(value) : undefined);
+  return term ? formatType(term) : AUTO;
+}
+function pin(name: string, value: string): void {
+  if (value !== pinned(name)) editor.setTypeArg(id, name, value === AUTO ? undefined : t(value));
 }
 
 const variadic = computed(() => manifest.value?.variadic);
@@ -86,48 +108,64 @@ const checkConnection: ValidConnectionFunc = (c) => {
 </script>
 
 <template>
-  <div
+  <UCard
     class="wf-node"
-    :class="[
-      `wf-mode-${mode}`,
-      {
-        'wf-selected': selected,
-        'wf-invalid': problems.length,
-        'wf-ran': trace?.runs,
-        'wf-faulted': trace?.fault,
-      },
-    ]"
-    :style="{ '--wf-accent': modeColor(mode) }"
+    :ui="{
+      root: ['min-w-44 overflow-visible transition-shadow', ring],
+      header: 'px-3 py-2 sm:px-3',
+      body: 'px-3 py-1.5 sm:px-3 sm:py-1.5',
+      footer: 'px-3 py-2 sm:px-3',
+    }"
   >
-    <header class="wf-node-header" :title="manifest?.description">
-      <span class="wf-node-title">{{ manifest?.label ?? node?.type }}</span>
-      <span class="wf-node-badges">
-        <span v-if="trace?.runs" class="wf-badge wf-badge-runs" :title="`Ran ${trace.runs}×`"
-          >×{{ trace.runs }}</span
-        >
+    <template #header>
+      <div class="flex items-center gap-2" :title="manifest?.description">
         <span
+          class="flex size-6 shrink-0 items-center justify-center rounded-md"
+          :class="style.tile"
+        >
+          <UIcon :name="manifest?.icon ?? style.icon" class="size-3.5" />
+        </span>
+        <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted">
+          {{ manifest?.label ?? node?.type }}
+        </span>
+        <UBadge
+          v-if="trace?.runs"
+          color="success"
+          variant="subtle"
+          size="sm"
+          :label="`×${trace.runs}`"
+        />
+        <UBadge
           v-for="cap in manifest?.requires ?? []"
           :key="cap"
-          class="wf-badge wf-badge-cap"
-          :title="`Needs ${cap}`"
-          >{{ cap }}</span
-        >
-        <span
-          v-if="problems.length"
-          class="wf-badge wf-badge-error"
-          :title="problems.map((d) => d.message).join('\n')"
-          >{{ problems.length }}</span
-        >
-      </span>
-    </header>
+          color="neutral"
+          variant="outline"
+          size="sm"
+          :label="cap"
+        />
+        <UTooltip v-if="problems.length" :text="problems.map((d) => d.message).join('\n')">
+          <UBadge
+            color="error"
+            variant="solid"
+            size="sm"
+            icon="i-lucide-circle-alert"
+            :label="problems.length"
+          />
+        </UTooltip>
+      </div>
+    </template>
 
-    <div v-if="!ports" class="wf-node-broken">
-      <div v-for="d in problems" :key="d.code + d.message">{{ d.message }}</div>
+    <div v-if="!ports" class="py-1 text-xs text-error">
+      <p v-for="d in problems" :key="d.code + d.message">{{ d.message }}</p>
     </div>
 
-    <div v-else class="wf-node-body">
-      <div class="wf-col wf-col-in">
-        <div v-for="name in ports.execIn" :key="`x-${name}`" class="wf-port wf-port-exec">
+    <div v-else class="flex justify-between gap-5">
+      <div class="flex min-w-0 flex-col gap-0.5">
+        <div
+          v-for="name in ports.execIn"
+          :key="`x-${name}`"
+          class="wf-port wf-port-in relative flex min-h-7 items-center gap-1.5"
+        >
           <Handle
             :id="handleId('exec', name)"
             type="target"
@@ -136,15 +174,13 @@ const checkConnection: ValidConnectionFunc = (c) => {
             :class="{ 'wf-wired': wiredIn.has(name) }"
             :is-valid-connection="checkConnection"
           />
-          <span class="wf-port-label">{{ execLabel(name) }}</span>
+          <span class="text-xs text-muted">{{ execLabel(name) }}</span>
         </div>
         <div
           v-for="[name, def] in ports.inputs"
           :key="`d-${name}`"
-          class="wf-port wf-port-data"
-          :class="{ 'wf-port-invalid': portProblem(name) }"
+          class="wf-port wf-port-in relative flex min-h-7 items-center gap-1.5"
           :style="portStyle(typeIn(name))"
-          :title="portProblem(name) ?? formatType(typeIn(name) ?? def.type)"
         >
           <Handle
             v-if="def.wire !== false"
@@ -155,10 +191,15 @@ const checkConnection: ValidConnectionFunc = (c) => {
             :class="[`wf-shape-${typeShape(typeIn(name))}`, { 'wf-wired': wiredIn.has(name) }]"
             :is-valid-connection="checkConnection"
           />
-          <span class="wf-port-label"
-            >{{ label(name, def) }}<span v-if="def.required" class="wf-required">*</span></span
-          >
-          <div v-if="!wiredIn.has(name)" class="wf-port-widget nodrag nowheel">
+          <UTooltip :text="portProblem(name) ?? formatType(typeIn(name) ?? def.type)">
+            <span
+              class="text-xs whitespace-nowrap"
+              :class="portProblem(name) ? 'text-error underline decoration-wavy' : 'text-toned'"
+            >
+              {{ label(name, def) }}<span v-if="def.required" class="text-error">*</span>
+            </span>
+          </UTooltip>
+          <div v-if="!wiredIn.has(name)" class="nodrag nowheel">
             <slot name="widget" v-bind="widget(name, def)">
               <WorkflowWidget v-bind="widget(name, def)" />
             </slot>
@@ -166,9 +207,13 @@ const checkConnection: ValidConnectionFunc = (c) => {
         </div>
       </div>
 
-      <div class="wf-col wf-col-out">
-        <div v-for="name in ports.execOut" :key="`x-${name}`" class="wf-port wf-port-exec">
-          <span class="wf-port-label">{{ execLabel(name) }}</span>
+      <div class="flex min-w-0 flex-col items-end gap-0.5">
+        <div
+          v-for="name in ports.execOut"
+          :key="`x-${name}`"
+          class="wf-port wf-port-out relative flex min-h-7 items-center gap-1.5"
+        >
+          <span class="text-xs text-muted">{{ execLabel(name) }}</span>
           <Handle
             :id="handleId('exec', name)"
             type="source"
@@ -181,17 +226,21 @@ const checkConnection: ValidConnectionFunc = (c) => {
         <div
           v-for="[name, def] in ports.outputs"
           :key="`d-${name}`"
-          class="wf-port wf-port-data"
+          class="wf-port wf-port-out relative flex min-h-7 items-center gap-1.5"
           :style="portStyle(typeOut(name))"
-          :title="formatType(typeOut(name) ?? def.type)"
         >
-          <span
-            v-if="trace?.values.has(name)"
-            class="wf-value"
-            :title="String(formatValue(trace.values.get(name), 400))"
-            >{{ formatValue(trace.values.get(name)) }}</span
-          >
-          <span class="wf-port-label">{{ label(name, def) }}</span>
+          <UTooltip v-if="trace?.values.has(name)" :text="formatValue(trace.values.get(name), 400)">
+            <UBadge
+              color="neutral"
+              variant="soft"
+              size="sm"
+              class="max-w-32 font-mono"
+              :label="formatValue(trace.values.get(name))"
+            />
+          </UTooltip>
+          <UTooltip :text="formatType(typeOut(name) ?? def.type)">
+            <span class="text-xs whitespace-nowrap text-toned">{{ label(name, def) }}</span>
+          </UTooltip>
           <Handle
             :id="handleId('data', name)"
             type="source"
@@ -204,46 +253,45 @@ const checkConnection: ValidConnectionFunc = (c) => {
       </div>
     </div>
 
-    <footer
-      v-if="ports && (manifest?.typeParams?.length || variadic)"
-      class="wf-node-footer nodrag"
-    >
-      <label v-for="p in manifest?.typeParams ?? []" :key="p.name" class="wf-typearg">
-        <span>{{ p.name }}</span>
-        <select :value="pinned(p.name)" @change="pin(p.name, $event)">
-          <option value="">auto</option>
-          <option
-            v-if="pinned(p.name) && !groundTypes.includes(pinned(p.name))"
-            :value="pinned(p.name)"
-          >
-            {{ pinned(p.name) }}
-          </option>
-          <option v-for="id in groundTypes" :key="id" :value="id">{{ id }}</option>
-        </select>
-      </label>
-      <span v-if="variadic" class="wf-variadic">
-        <button
-          type="button"
-          :disabled="count <= (variadic.min ?? 0)"
-          title="Remove the last port"
-          @click="editor.setVariadic(id, count - 1)"
-        >
-          −
-        </button>
-        <span>{{ count }} {{ variadic.prefix }}</span>
-        <button
-          type="button"
-          :disabled="count >= (variadic.max ?? Infinity)"
-          title="Add a port"
-          @click="editor.setVariadic(id, count + 1)"
-        >
-          +
-        </button>
-      </span>
-    </footer>
+    <UAlert
+      v-if="trace?.fault"
+      class="mt-1.5 mb-1 w-0 min-w-full"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-octagon-alert"
+      :title="trace.fault.code"
+      :description="trace.fault.message"
+      :ui="{ root: 'p-2 gap-2', title: 'text-xs', description: 'text-xs', icon: 'size-4' }"
+    />
 
-    <div v-if="trace?.fault" class="wf-node-fault">
-      {{ trace.fault.code }}: {{ trace.fault.message }}
-    </div>
-  </div>
+    <template v-if="ports && (manifest?.typeParams?.length || variadic)" #footer>
+      <div class="nodrag flex flex-wrap items-center gap-2">
+        <div
+          v-for="p in manifest?.typeParams ?? []"
+          :key="p.name"
+          class="flex items-center gap-1.5"
+        >
+          <span class="font-mono text-xs font-semibold text-secondary">{{ p.name }}</span>
+          <USelect
+            size="xs"
+            class="w-28"
+            :items="pinItems(p.name)"
+            :model-value="pinned(p.name)"
+            @update:model-value="pin(p.name, String($event))"
+          />
+        </div>
+        <div v-if="variadic" class="flex items-center gap-1.5">
+          <span class="text-xs text-muted">{{ variadic.prefix }}</span>
+          <UInputNumber
+            size="xs"
+            class="w-24"
+            :min="variadic.min ?? 0"
+            :max="variadic.max ?? 1024"
+            :model-value="count"
+            @update:model-value="editor.setVariadic(id, $event ?? count)"
+          />
+        </div>
+      </div>
+    </template>
+  </UCard>
 </template>

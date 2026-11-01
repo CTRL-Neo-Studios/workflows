@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import UBadge from "@nuxt/ui/components/Badge.vue";
+import UButton from "@nuxt/ui/components/Button.vue";
+import UIcon from "@nuxt/ui/components/Icon.vue";
+import UInput from "@nuxt/ui/components/Input.vue";
 import { computed, ref } from "vue";
 import type { NodeMode } from "../core";
 import { PALETTE_MIME, type NodeInit, type WorkflowEditor } from "./editor";
-import { modeColor } from "./theme";
+import { MODE_STYLES } from "./theme";
 
 const { editor } = defineProps<{ editor: WorkflowEditor }>();
 
@@ -13,6 +17,7 @@ interface Entry {
   mode: NodeMode;
   category: string;
   description?: string | undefined;
+  icon?: string | undefined;
   requires: string[];
   init?: NodeInit;
 }
@@ -34,6 +39,7 @@ const entries = computed<Entry[]>(() => {
       category:
         m.category ?? (m.mode === "event" ? "Events" : titleCase(m.type.split(".")[0] ?? "")),
       description: m.description,
+      icon: m.icon,
       requires: m.requires ?? [],
     }));
   const core = (e: Omit<Entry, "key" | "requires">): void => {
@@ -84,31 +90,46 @@ function drag(event: DragEvent, e: Entry): void {
 </script>
 
 <template>
-  <nav class="wf-palette">
-    <input
-      v-model="query"
-      class="wf-input wf-palette-search"
-      type="search"
-      placeholder="Search nodes"
-    />
-    <section v-for="[category, items] in groups" :key="category" class="wf-palette-group">
-      <h3>{{ category }}</h3>
-      <button
+  <nav class="flex flex-col gap-3 p-3">
+    <UInput v-model="query" icon="i-lucide-search" size="sm" placeholder="Search nodes" />
+    <section v-for="[category, items] in groups" :key="category" class="flex flex-col gap-0.5">
+      <p class="px-2 pb-1 text-xs font-medium text-dimmed">{{ category }}</p>
+      <UButton
         v-for="e in items"
         :key="e.key"
-        type="button"
-        class="wf-palette-item"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        block
+        class="justify-start"
         draggable="true"
-        :style="{ '--wf-accent': modeColor(e.mode) }"
         :title="e.description ?? e.type"
         @dragstart="drag($event, e)"
         @click="editor.addNode(e.type, undefined, e.init)"
       >
-        <span class="wf-palette-label">{{ e.label }}</span>
-        <span v-for="cap in e.requires" :key="cap" class="wf-badge wf-badge-cap">{{ cap }}</span>
-        <span class="wf-palette-mode">{{ e.mode }}</span>
-      </button>
+        <template #leading>
+          <span
+            class="flex size-5 shrink-0 items-center justify-center rounded"
+            :class="MODE_STYLES[e.mode].tile"
+          >
+            <UIcon :name="e.icon ?? MODE_STYLES[e.mode].icon" class="size-3" />
+          </span>
+        </template>
+        <span class="truncate">{{ e.label }}</span>
+        <template #trailing>
+          <span class="ms-auto flex gap-1">
+            <UBadge
+              v-for="cap in e.requires"
+              :key="cap"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :label="cap"
+            />
+          </span>
+        </template>
+      </UButton>
     </section>
-    <p v-if="!groups.length" class="wf-muted">No nodes match “{{ query }}”.</p>
+    <p v-if="!groups.length" class="px-2 text-sm text-muted">No nodes match “{{ query }}”.</p>
   </nav>
 </template>

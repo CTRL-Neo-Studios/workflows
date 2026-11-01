@@ -51,7 +51,21 @@ export function typeShape(term: TypeTerm | undefined): "one" | "list" | "dict" {
   return term.id === "List" ? "list" : term.id === "Dictionary" ? "dict" : "one";
 }
 
-export const modeColor = (mode: NodeMode): string => `var(--wf-mode-${mode})`;
+export interface ModeStyle {
+  /** Nuxt UI semantic color, so modes follow the host's theme. */
+  color: "error" | "info" | "success" | "warning";
+  /** Default icon; a manifest's `icon` replaces it. */
+  icon: string;
+  /** Classes for the icon tile. Full strings, so Tailwind finds them when it scans this package. */
+  tile: string;
+}
+
+export const MODE_STYLES: Record<NodeMode, ModeStyle> = {
+  event: { color: "error", icon: "i-lucide-zap", tile: "bg-error/10 text-error" },
+  exec: { color: "info", icon: "i-lucide-play", tile: "bg-info/10 text-info" },
+  pure: { color: "success", icon: "i-lucide-sigma", tile: "bg-success/10 text-success" },
+  once: { color: "warning", icon: "i-lucide-database", tile: "bg-warning/10 text-warning" },
+};
 
 /** Short text for a traced value: strings quoted, collections by size. */
 export function formatValue(value: unknown, max = 28): string {

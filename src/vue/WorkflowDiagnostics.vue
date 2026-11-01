@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import UAlert from "@nuxt/ui/components/Alert.vue";
+import UBadge from "@nuxt/ui/components/Badge.vue";
+import UTooltip from "@nuxt/ui/components/Tooltip.vue";
 import { computed } from "vue";
 import type { Diagnostic } from "../core";
 import type { WorkflowEditor } from "./editor";
@@ -30,30 +33,40 @@ function show(d: Diagnostic): void {
 </script>
 
 <template>
-  <section class="wf-diagnostics">
-    <div class="wf-caps">
-      <span
-        v-for="c in capabilities"
-        :key="c.id"
-        class="wf-badge wf-badge-cap"
-        :class="{ 'wf-badge-mutates': c.mutates }"
-        :title="c.description ?? c.label"
-        >{{ c.label }}</span
-      >
-      <span v-if="!capabilities.length" class="wf-muted">No capabilities needed</span>
+  <section class="flex flex-col gap-2">
+    <div class="flex flex-wrap gap-1">
+      <UTooltip v-for="c in capabilities" :key="c.id" :text="c.description ?? c.label">
+        <UBadge
+          :color="c.mutates ? 'warning' : 'neutral'"
+          variant="subtle"
+          :icon="c.mutates ? 'i-lucide-pencil' : 'i-lucide-eye'"
+          :label="c.label"
+        />
+      </UTooltip>
+      <span v-if="!capabilities.length" class="text-xs text-muted">No capabilities needed</span>
     </div>
-    <p v-if="!diagnostics.length" class="wf-ok">No problems</p>
-    <ul v-else>
-      <li
-        v-for="(d, i) in diagnostics"
-        :key="i"
-        :class="`wf-diag-${d.severity}`"
-        :role="target(d) ? 'button' : undefined"
-        @click="show(d)"
-      >
-        <code>{{ d.code }}</code>
-        <span>{{ d.message }}</span>
-      </li>
-    </ul>
+    <UAlert
+      v-if="!diagnostics.length"
+      color="success"
+      variant="subtle"
+      icon="i-lucide-circle-check"
+      title="No problems"
+    />
+    <div
+      v-for="(d, i) in diagnostics"
+      :key="i"
+      :role="target(d) ? 'button' : undefined"
+      :class="target(d) ? 'cursor-pointer' : ''"
+      @click="show(d)"
+    >
+      <UAlert
+        :color="d.severity === 'error' ? 'error' : 'warning'"
+        variant="subtle"
+        :icon="d.severity === 'error' ? 'i-lucide-circle-x' : 'i-lucide-triangle-alert'"
+        :title="d.code"
+        :description="d.message"
+        :ui="{ title: 'font-mono text-xs', description: 'text-xs' }"
+      />
+    </div>
   </section>
 </template>

@@ -102,7 +102,13 @@ Functions live in `doc.program.functions`. A body has one `core.entry` and one `
 
 ### Editing on a canvas
 
-Peer dependencies: `vue` and `@vue-flow/core`.
+Peer dependencies: `vue`, `@vue-flow/core` and `@nuxt/ui`. The components are built from Nuxt UI, so set it up in the host (the `@nuxt/ui` module in Nuxt, or its Vite and Vue plugins with `<UApp>`), and let Tailwind scan this package from your CSS entry:
+
+```css
+@import "tailwindcss";
+@import "@nuxt/ui";
+@source "../node_modules/@type32/workflows/dist"; /* relative to this file */
+```
 
 ```vue
 <script setup lang="ts">
@@ -139,7 +145,7 @@ async function start() {
 </template>
 ```
 
-`analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Colors are `--wf-*` CSS variables; `TypeDef.color` takes a palette name (`sky`, `rose`, …) or any CSS color. `bun run play` opens a playground with the §10 language and an in-memory vault.
+`analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Nodes follow the host's Nuxt UI theme; port and wire colors are `--wf-*` CSS variables, and `TypeDef.color` takes a palette name (`sky`, `rose`, …) or any CSS color. `bun run play` opens a playground with the §10 language and an in-memory vault.
 
 ## Scripts
 
@@ -148,7 +154,7 @@ async function start() {
 | `bun run build`     | Bundle `src/core` and `src/vue` → `dist/` + `.d.mts`    |
 | `bun run play`      | Vite playground (`playground/`)                         |
 | `bun run test`      | Run Vitest once (`test:watch` to watch)                 |
-| `bun run typecheck` | vue-tsc (TypeScript 6.0.3) + TypeScript 7 on `src/core` |
+| `bun run typecheck` | `ui:prepare` (generates Nuxt UI's theme types), vue-tsc (TypeScript 6.0.3), TypeScript 7 on `src/core` |
 | `bun run lint`      | Oxlint                                                  |
 | `bun run format`    | Oxfmt (`format:check` to verify only)                   |
 | `bun run check`     | lint + format:check + typecheck + test                  |

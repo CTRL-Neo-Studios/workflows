@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The library's components live outside the playground root. */
+@source "../src/vue";

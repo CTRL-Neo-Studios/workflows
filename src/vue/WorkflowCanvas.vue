@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import UBadge from "@nuxt/ui/components/Badge.vue";
+import UButton from "@nuxt/ui/components/Button.vue";
+import UFieldGroup from "@nuxt/ui/components/FieldGroup.vue";
 import {
   ConnectionMode,
   VueFlow,
@@ -165,7 +168,7 @@ const grid = computed(() => {
 });
 </script>
 <template>
-  <div class="wf-canvas" :style="grid" @dragover.prevent @drop.prevent="onDrop">
+  <div class="wf-canvas relative size-full" :style="grid" @dragover.prevent @drop.prevent="onDrop">
     <VueFlow
       :id="flowId"
       :connection-mode="ConnectionMode.Strict"
@@ -192,11 +195,39 @@ const grid = computed(() => {
       </template>
     </VueFlow>
 
-    <div v-if="hint" class="wf-hint">{{ hint }}</div>
-    <div class="wf-controls">
-      <button type="button" title="Zoom in" @click="zoomIn()">+</button>
-      <button type="button" title="Zoom out" @click="zoomOut()">−</button>
-      <button type="button" title="Fit view" @click="fitView({ duration: 200 })">⤢</button>
-    </div>
+    <UBadge
+      v-if="hint"
+      class="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 shadow-lg"
+      color="error"
+      size="lg"
+      icon="i-lucide-unplug"
+      :label="hint"
+    />
+    <UFieldGroup orientation="vertical" class="absolute bottom-3 left-3 z-5 shadow-sm">
+      <UButton
+        color="neutral"
+        variant="outline"
+        size="sm"
+        icon="i-lucide-zoom-in"
+        aria-label="Zoom in"
+        @click="zoomIn()"
+      />
+      <UButton
+        color="neutral"
+        variant="outline"
+        size="sm"
+        icon="i-lucide-zoom-out"
+        aria-label="Zoom out"
+        @click="zoomOut()"
+      />
+      <UButton
+        color="neutral"
+        variant="outline"
+        size="sm"
+        icon="i-lucide-scan"
+        aria-label="Fit view"
+        @click="fitView({ duration: 200 })"
+      />
+    </UFieldGroup>
   </div>
 </template>

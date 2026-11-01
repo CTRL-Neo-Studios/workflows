@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import UInput from "@nuxt/ui/components/Input.vue";
+import UInputNumber from "@nuxt/ui/components/InputNumber.vue";
+import USelect from "@nuxt/ui/components/Select.vue";
+import USwitch from "@nuxt/ui/components/Switch.vue";
 import { computed, ref } from "vue";
 import type { Json } from "../core";
 import type { WidgetSlotProps } from "./editor";
@@ -15,30 +19,26 @@ const kind = computed(() => {
   if (s.type === "string") return "string";
   return "json";
 });
-const options = computed(() =>
-  Array.isArray(props.schema?.enum) ? (props.schema.enum as Json[]) : [],
-);
 const shown = (v: Json | undefined): string =>
   v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
 
-// Empty text unsets the literal, so the default (or a wire) applies again.
-function text(event: Event): void {
-  const value = (event.target as HTMLInputElement).value;
-  props.update(value === "" ? undefined : value);
-}
-function number(event: Event): void {
-  const value = (event.target as HTMLInputElement).valueAsNumber;
-  props.update(Number.isNaN(value) ? undefined : value);
-}
-function choose(event: Event): void {
-  const i = Number((event.target as HTMLSelectElement).value);
-  props.update(i < 0 ? undefined : options.value[i]);
-}
+// Select items need string values: an option's index, and `-` for "no literal".
+const options = computed(() =>
+  Array.isArray(props.schema?.enum) ? (props.schema.enum as Json[]) : [],
+);
+const items = computed(() => [
+  { label: props.fallback === undefined ? "—" : `${shown(props.fallback)} (default)`, value: "-" },
+  ...options.value.map((o, i) => ({ label: shown(o), value: String(i) })),
+]);
+const chosen = computed(() => {
+  const i = options.value.findIndex((o) => JSON.stringify(o) === JSON.stringify(props.value));
+  return i < 0 ? "-" : String(i);
+});
+
 const badJson = ref(false);
-function json(event: Event): void {
-  const value = (event.target as HTMLInputElement).value;
+function json(text: string): void {
   try {
-    props.update(value === "" ? undefined : (JSON.parse(value) as Json));
+    props.update(text === "" ? undefined : (JSON.parse(text) as Json));
     badJson.value = false;
   } catch {
     badJson.value = true;
@@ -47,47 +47,46 @@ function json(event: Event): void {
 </script>
 
 <template>
-  <input
+  <!-- Empty text unsets the literal, so the default (or a wire) applies again. -->
+  <UInput
     v-if="kind === 'string'"
-    class="wf-input"
-    type="text"
-    :value="shown(value)"
+    size="xs"
+    class="w-32"
+    :model-value="shown(value)"
     :placeholder="shown(fallback)"
-    @input="text"
+    @update:model-value="update($event === '' ? undefined : String($event))"
   />
-  <input
+  <UInputNumber
     v-else-if="kind === 'number'"
-    class="wf-input"
-    type="number"
-    :step="schema?.type === 'integer' ? 1 : 'any'"
-    :value="value"
+    size="xs"
+    class="w-28"
+    :step="schema?.type === 'integer' ? 1 : 0.1"
+    :model-value="typeof value === 'number' ? value : null"
     :placeholder="shown(fallback)"
-    @input="number"
+    @update:model-value="update($event ?? undefined)"
   />
-  <input
+  <USwitch
     v-else-if="kind === 'boolean'"
-    class="wf-check"
-    type="checkbox"
-    :checked="(value ?? fallback) === true"
-    @change="update(($event.target as HTMLInputElement).checked)"
+    size="xs"
+    :model-value="(value ?? fallback) === true"
+    @update:model-value="update($event)"
   />
-  <select
+  <USelect
     v-else-if="kind === 'enum'"
-    class="wf-input"
-    :value="options.findIndex((o) => JSON.stringify(o) === JSON.stringify(value))"
-    @change="choose"
-  >
-    <option :value="-1">{{ fallback === undefined ? "—" : `${shown(fallback)} (default)` }}</option>
-    <option v-for="(o, i) in options" :key="i" :value="i">{{ shown(o) }}</option>
-  </select>
-  <input
+    size="xs"
+    class="w-32"
+    :items="items"
+    :model-value="chosen"
+    @update:model-value="update($event === '-' ? undefined : options[Number($event)])"
+  />
+  <UInput
     v-else-if="kind === 'json'"
-    class="wf-input wf-input-json"
-    :class="{ 'wf-input-bad': badJson }"
-    type="text"
-    spellcheck="false"
-    :value="shown(value)"
+    size="xs"
+    class="w-32 font-mono"
+    :color="badJson ? 'error' : 'neutral'"
+    :highlight="badJson"
+    :default-value="shown(value)"
     :placeholder="shown(fallback) || 'JSON'"
-    @change="json"
+    @change="json(($event.target as HTMLInputElement).value)"
   />
 </template>

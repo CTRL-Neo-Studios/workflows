@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { useColorMode } from "@vueuse/core";
+import UAlert from "@nuxt/ui/components/Alert.vue";
+import UApp from "@nuxt/ui/components/App.vue";
+import UBadge from "@nuxt/ui/components/Badge.vue";
+import UButton from "@nuxt/ui/components/Button.vue";
+import UCollapsible from "@nuxt/ui/components/Collapsible.vue";
 import { computed, reactive, ref } from "vue";
 import { CompileError, type DocumentV1, type RunResult } from "../src/core";
 import { archiveDrafts, vertex, type VertexEffects } from "../src/core/fixtures/section10";
@@ -50,11 +56,11 @@ function example(): DocumentV1 {
   doc.view.positions = {
     n1: { x: 0, y: 40 },
     n2: { x: 0, y: 200 },
-    n3: { x: 320, y: 60 },
-    n4: { x: 340, y: 300 },
-    n6: { x: 580, y: 300 },
-    n5: { x: 860, y: 40 },
-    n7: { x: 1160, y: 40 },
+    n3: { x: 380, y: 60 },
+    n4: { x: 400, y: 320 },
+    n6: { x: 640, y: 320 },
+    n5: { x: 940, y: 40 },
+    n7: { x: 1260, y: 40 },
   };
   return doc;
 }
@@ -98,218 +104,156 @@ function resetVault(): void {
 
 const traceLines = computed(() => formatTrace(editor.trace.value));
 const json = computed(() => JSON.stringify(editor.document.value, null, 2));
+const mode = useColorMode();
 </script>
 
 <template>
-  <div class="app">
-    <header class="bar">
-      <strong class="brand">Workflows <span>playground</span></strong>
-      <button type="button" @click="load(empty())">New</button>
-      <button type="button" @click="load(example())">Load §10 example</button>
-      <span class="spacer" />
-      <button type="button" class="run" :disabled="running" @click="start">▶ Run “On Run”</button>
-    </header>
+  <UApp>
+    <div
+      class="grid h-dvh grid-cols-[15rem_1fr_22rem] grid-rows-[auto_1fr] bg-default text-default"
+    >
+      <header class="col-span-3 flex items-center gap-2 border-b border-default px-4 py-2">
+        <span class="me-3 text-sm font-semibold text-highlighted">
+          Workflows <span class="font-normal text-muted">playground</span>
+        </span>
+        <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-file-plus"
+          label="New"
+          @click="load(empty())"
+        />
+        <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-book-open"
+          label="Load §10 example"
+          @click="load(example())"
+        />
+        <span class="flex-1" />
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          :icon="mode === 'dark' ? 'i-lucide-moon' : 'i-lucide-sun'"
+          aria-label="Toggle color mode"
+          @click="mode = mode === 'dark' ? 'light' : 'dark'"
+        />
+        <UButton
+          size="sm"
+          icon="i-lucide-play"
+          label="Run “On Run”"
+          :loading="running"
+          @click="start"
+        />
+      </header>
 
-    <aside class="left"><WorkflowPalette :editor="editor" /></aside>
+      <aside class="overflow-auto border-e border-default">
+        <WorkflowPalette :editor="editor" />
+      </aside>
 
-    <main class="center">
-      <WorkflowCanvas :key="canvasKey" :editor="editor" />
-    </main>
+      <main class="min-w-0">
+        <WorkflowCanvas :key="canvasKey" :editor="editor" />
+      </main>
 
-    <aside class="right">
-      <section>
-        <h2>Problems</h2>
-        <WorkflowDiagnostics :editor="editor" />
-      </section>
+      <aside class="flex flex-col gap-5 overflow-auto border-s border-default p-4">
+        <section>
+          <h2 class="mb-2 text-xs font-medium text-dimmed">Problems</h2>
+          <WorkflowDiagnostics :editor="editor" />
+        </section>
 
-      <section>
-        <h2>Run</h2>
-        <p v-if="error" class="fault">{{ error }}</p>
-        <p v-else-if="!result" class="muted">Not run yet.</p>
-        <p v-else :class="result.status">
-          {{ result.status }} · {{ result.steps }} steps
-          <template v-if="result.fault"
-            ><br />{{ result.fault.code }}: {{ result.fault.message }}</template
-          >
-        </p>
-        <ol v-if="log.length" class="log">
-          <li v-for="(line, i) in log" :key="i">{{ line }}</li>
-        </ol>
-      </section>
+        <section class="run">
+          <h2 class="mb-2 text-xs font-medium text-dimmed">Run</h2>
+          <UAlert
+            v-if="error"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-circle-x"
+            :title="error"
+          />
+          <p v-else-if="!result" class="text-sm text-muted">Not run yet.</p>
+          <UAlert
+            v-else
+            :color="result.status === 'ok' ? 'success' : 'error'"
+            variant="subtle"
+            :icon="result.status === 'ok' ? 'i-lucide-circle-check' : 'i-lucide-octagon-alert'"
+            :title="`${result.status} · ${result.steps} steps`"
+            :description="result.fault ? `${result.fault.code}: ${result.fault.message}` : ''"
+          />
+          <ol v-if="log.length" class="mt-2 list-decimal ps-5 font-mono text-xs text-toned">
+            <li v-for="(line, i) in log" :key="i">{{ line }}</li>
+          </ol>
+        </section>
 
-      <section>
-        <h2>
-          Vault
-          <button type="button" class="small" @click="resetVault">Reset</button>
-        </h2>
-        <table>
-          <tr v-for="f in vault" :key="f.path + JSON.stringify(f.props)">
-            <td>
-              <code>{{ f.path }}</code>
-            </td>
-            <td>
-              <span v-for="t in f.tags" :key="t" class="tag">#{{ t }}</span>
-            </td>
-            <td>
-              <code>{{ JSON.stringify(f.props) }}</code>
-            </td>
-          </tr>
-        </table>
-      </section>
+        <section class="vault">
+          <div class="mb-2 flex items-center justify-between">
+            <h2 class="text-xs font-medium text-dimmed">Vault</h2>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-rotate-ccw"
+              label="Reset"
+              @click="resetVault"
+            />
+          </div>
+          <div class="divide-y divide-default rounded-md border border-default text-xs">
+            <div
+              v-for="f in vault"
+              :key="f.path + JSON.stringify(f.props)"
+              class="flex flex-col gap-1 p-2"
+            >
+              <code class="text-highlighted">{{ f.path }}</code>
+              <div class="flex flex-wrap items-center gap-1">
+                <UBadge
+                  v-for="t in f.tags"
+                  :key="t"
+                  color="secondary"
+                  variant="subtle"
+                  size="sm"
+                  :label="`#${t}`"
+                />
+                <code class="text-muted">{{ JSON.stringify(f.props) }}</code>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <details v-if="traceLines.length">
-        <summary>Trace ({{ traceLines.length }})</summary>
-        <pre>{{ traceLines.join("\n") }}</pre>
-      </details>
-      <details>
-        <summary>Document JSON</summary>
-        <pre>{{ json }}</pre>
-      </details>
-    </aside>
-  </div>
+        <UCollapsible v-if="traceLines.length">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            block
+            class="justify-start"
+            trailing-icon="i-lucide-chevron-down"
+            :label="`Trace (${traceLines.length})`"
+          />
+          <template #content>
+            <pre class="max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
+              traceLines.join("\n")
+            }}</pre>
+          </template>
+        </UCollapsible>
+        <UCollapsible>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            block
+            class="justify-start"
+            trailing-icon="i-lucide-chevron-down"
+            label="Document JSON"
+          />
+          <template #content>
+            <pre class="json max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
+              json
+            }}</pre>
+          </template>
+        </UCollapsible>
+      </aside>
+    </div>
+  </UApp>
 </template>
-
-<style>
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
-}
-body {
-  background: var(--wf-bg);
-  color: var(--wf-fg);
-  font: 13px/1.4 var(--wf-font);
-  color-scheme: light dark;
-}
-.app {
-  display: grid;
-  grid-template: "bar bar bar" auto "left center right" 1fr / 240px 1fr 340px;
-  height: 100%;
-}
-.bar {
-  grid-area: bar;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--wf-border);
-  background: var(--wf-surface);
-}
-.brand {
-  margin-right: 12px;
-  font-size: 15px;
-  background: linear-gradient(90deg, var(--wf-fuchsia), var(--wf-sky));
-  background-clip: text;
-  color: transparent;
-}
-.brand span {
-  font-weight: 400;
-}
-.spacer {
-  flex: 1;
-}
-button {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--wf-border);
-  border-radius: 7px;
-  background: var(--wf-surface-2);
-  color: var(--wf-fg);
-  font: inherit;
-  cursor: pointer;
-}
-button:hover {
-  border-color: var(--wf-blue);
-}
-button.run {
-  border: 0;
-  background: linear-gradient(90deg, var(--wf-rose), var(--wf-orange));
-  color: white;
-  font-weight: 650;
-}
-button.small {
-  height: 20px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 400;
-}
-.left,
-.right {
-  overflow: auto;
-  background: var(--wf-surface);
-}
-.left {
-  grid-area: left;
-  border-right: 1px solid var(--wf-border);
-}
-.center {
-  grid-area: center;
-  min-width: 0;
-}
-.right {
-  grid-area: right;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 12px;
-  border-left: 1px solid var(--wf-border);
-}
-h2 {
-  display: flex;
-  justify-content: space-between;
-  margin: 0 0 8px;
-  color: var(--wf-muted);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-p {
-  margin: 0;
-}
-.ok {
-  color: var(--wf-ok);
-  font-weight: 600;
-}
-.fault,
-.aborted {
-  color: var(--wf-error);
-  font-weight: 600;
-}
-.muted {
-  color: var(--wf-muted);
-}
-.log {
-  margin: 8px 0 0;
-  padding-left: 20px;
-  font-family: var(--wf-mono);
-  font-size: 11.5px;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11.5px;
-}
-td {
-  padding: 4px 4px;
-  border-bottom: 1px solid var(--wf-border);
-  vertical-align: top;
-}
-.tag {
-  margin-right: 4px;
-  color: var(--wf-violet);
-}
-pre {
-  max-height: 320px;
-  overflow: auto;
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--wf-surface-2);
-  font: 11px/1.4 var(--wf-mono);
-}
-summary {
-  cursor: pointer;
-  color: var(--wf-muted);
-  font-weight: 600;
-}
-</style>
