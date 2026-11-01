@@ -177,7 +177,10 @@ export async function run<E extends object>(
   return { result, trace };
 }
 
-/** Compact trace lines: `>n1` enter, `<n1.then` exit (with port), `n3.item=/v/a.md` value, `!n8 E_UNSET_VALUE` fault. */
+/**
+ * Compact trace lines: `>n1` enter, `<n1.then` exit (with port), `~n3.body` fire, `n3.item=/v/a.md` value,
+ * `!n8 E_UNSET_VALUE` fault.
+ */
 export function formatTrace(events: readonly TraceEvent[]): string[] {
   return events.map((e) => {
     switch (e.t) {
@@ -185,6 +188,8 @@ export function formatTrace(events: readonly TraceEvent[]): string[] {
         return `>${e.node}`;
       case "exit":
         return `<${e.node}${e.port === undefined ? "" : `.${e.port}`}`;
+      case "fire":
+        return `~${e.node}.${e.port}`;
       case "value":
         return `${e.node}.${e.port}=${format(e.value)}`;
       case "fault":

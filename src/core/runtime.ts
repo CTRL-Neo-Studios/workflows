@@ -47,6 +47,8 @@ export type TraceEvent =
   /** Pure and once nodes: emitted after their inputs resolve. `depth` is the call depth. */
   | { t: "enter"; node: string; depth: number }
   | { t: "exit"; node: string; port?: string; depth: number }
+  /** An exec node's `fire(port)`, before the chain on `port` runs (and before its scope values). */
+  | { t: "fire"; node: string; port: string; depth: number }
   /** Only with `trace: 'values'`. */
   | { t: "value"; node: string; port: string; value: unknown }
   | { t: "fault"; node: string; fault: Fault };
@@ -570,6 +572,7 @@ class Run<E> {
           );
         }
         firing = true;
+        this.#emit({ t: "fire", node: node.id, port, depth: frame.depth });
         try {
           const child = opts?.scope === undefined ? scope : new Scope<E>(scope, frame);
           if (opts?.scope !== undefined && opts.scope !== true) {

@@ -1,7 +1,13 @@
 import type { Diagnostic, DiagnosticCode, DiagnosticLocation } from "./diagnostics";
 import type { DocumentV1, EdgeInstance, Graph } from "./document";
 import { type Constraint, type Instance, resolve, solve, type TypeVar } from "./infer";
-import { checkManifest, conversionKey, type DataPortDef, type LanguageManifest } from "./manifest";
+import {
+  checkManifest,
+  conversionKey,
+  type DataPortDef,
+  type LanguageManifest,
+  type NodeManifest,
+} from "./manifest";
 import {
   coreManifest,
   declarations,
@@ -16,10 +22,25 @@ export interface Analysis {
   diagnostics: Diagnostic[];
   /** Resolved type of a data port; unsolved variables stay as `var` terms. `undefined` for exec or unknown ports. */
   typeOf(node: string, port: string, dir: "in" | "out"): TypeTerm | undefined;
+  /**
+   * The node's ports, variadic ones expanded; a core.* node's come from the document. `undefined` for a node
+   * that was left out (unknown type, wrong version, bad variadic count or ref); it has a diagnostic.
+   */
+  ports(node: string): NodePorts | undefined;
   /** Edges whose value goes through a `ConversionDef`. */
   convertedEdges: ReadonlySet<string>;
   /** Capabilities of every node reachable from an event node, including through called functions (§7). */
   capabilities: ReadonlySet<string>;
+}
+
+export interface NodePorts {
+  /** For core.* nodes, built from the document. */
+  manifest: NodeManifest;
+  execIn: string[];
+  execOut: string[];
+  /** Port types are unresolved; `typeOf` gives the inferred ones. Variadic inputs are `required`. */
+  inputs: [name: string, def: DataPortDef][];
+  outputs: [name: string, def: DataPortDef][];
 }
 
 // ponytail: fixed cap on document-chosen variadic counts; make it a manifest/limit option if a language needs more.
@@ -205,6 +226,25 @@ export function analyze(doc: DocumentV1, manifest: LanguageManifest): Analyzed {
       if (!inst) return undefined;
       const p = dir === "in" ? inputPort(inst, port) : outputPort(inst, port);
       return p?.kind === "data" ? resolve(p.def.type, inst) : undefined;
+    },
+    ports(node) {
+      const inst = instances.get(node);
+      if (!inst) return undefined;
+      const m = inst.manifest;
+      const v = m.variadic;
+      const execOut = [...(m.exec?.out ?? [])];
+      if (v?.kind === "execOut")
+        for (let i = 0; i < inst.variadic; i++) execOut.push(`${v.prefix}${i}`);
+      return {
+        manifest: m,
+        execIn: m.mode === "exec" ? (m.exec?.in ?? ["exec"]) : [],
+        execOut,
+        inputs: dataInputs(inst).map(([name, def, required]) => [
+          name,
+          required && !def.required ? { ...def, required } : def,
+        ]),
+        outputs: Object.entries(m.outputs ?? {}),
+      };
     },
     convertedEdges,
     capabilities,

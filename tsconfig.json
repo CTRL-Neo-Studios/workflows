@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "Preserve",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
@@ -11,10 +11,12 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
-    "isolatedDeclarations": true,
     "declaration": true,
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src"]
+  "vueCompilerOptions": {
+    "strictTemplates": true
+  },
+  "include": ["src", "playground"]
 }

@@ -69,4 +69,4 @@ export {
   type TypeTerm,
   type Variance,
 } from "./types";
-export { validate, type Analysis } from "./validate";
+export { validate, type Analysis, type NodePorts } from "./validate";

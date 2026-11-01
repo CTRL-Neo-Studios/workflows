@@ -4,7 +4,7 @@ A visual node-scripting toolkit. Language developers define types, nodes and eff
 
 Design: [Node Engine Spec](https://github.com/CTRL-Neo-Studios/vertex/blob/t32/feature/workflows/Node%20Engine%20Spec.md). Vertex is the first language.
 
-> Status: M4. `@type32/workflows/core` has the type system, language definition with typed node contexts, `validate`, the runtime, functions and variables, `migrate` and `hashProgram`; `@type32/workflows/core/std` has the standard nodes; `@type32/workflows/core/testing` has test helpers. The Vue canvas follows.
+> Status: M5. `@type32/workflows/core` has the type system, language definition with typed node contexts, `validate`, the runtime, functions and variables, `migrate` and `hashProgram`; `@type32/workflows/core/std` has the standard nodes; `@type32/workflows/core/testing` has test helpers; `@type32/workflows/vue` has the canvas editor.
 
 ## Usage
 
@@ -62,7 +62,7 @@ const result = await compile(document, vertex).dispatch("vertex.onManual", undef
   signal, // abort → { status: "aborted" }
   limits: { steps: 1_000, timeoutMs: 10_000 },
   trace: "nodes",
-  onTrace: (event) => console.log(event), // { t: "enter" | "exit" | "value" | "fault", node, … }
+  onTrace: (event) => console.log(event), // { t: "enter" | "exit" | "fire" | "value" | "fault", node, … }
 });
 result; // { status: "ok" | "fault" | "aborted", fault?: { code: "E_UNSET_VALUE", message, node }, steps }
 ```
@@ -87,7 +87,7 @@ const { result, trace } = await run(vertex, doc, {
   effects: rec.effects,
 });
 rec.log(); // ["fs.rename(/v/a.md, b)"]
-formatTrace(trace); // [">go", "<go.then", ">r", "<r.then"]
+formatTrace(trace); // [">go", "<go.then", ">r", "<r.then"]; `~n3.body` is a fire
 ```
 
 `assertValid(doc, language)` throws an Error listing every diagnostic. The helpers don't depend on a test framework.
@@ -100,19 +100,61 @@ Loading a file: `migrate(JSON.parse(text), language)` is the boundary for untrus
 
 Functions live in `doc.program.functions`. A body has one `core.entry` and one `core.return`; `core.call` calls it, `core.get`/`core.set` read and write document variables or the function's locals. Generic functions declare `typeParams` (with optional bounds), are checked once with those as rigid types, and are instantiated fresh at each call. Reaching `core.return` ends the call at once; an exec function that never reaches it faults `E_NO_RETURN`.
 
+### Editing on a canvas
+
+Peer dependencies: `vue` and `@vue-flow/core`.
+
+```vue
+<script setup lang="ts">
+import "@type32/workflows/vue/style.css";
+import {
+  useWorkflowEditor,
+  WorkflowCanvas,
+  WorkflowDiagnostics,
+  WorkflowPalette,
+  WorkflowWidget,
+} from "@type32/workflows/vue";
+
+const editor = useWorkflowEditor(vertex.manifest, document); // the manifest is enough to edit
+async function start() {
+  const { trace } = await run(vertex, editor.snapshot(), {
+    event: "vertex.onManual",
+    effects,
+    trace: "values",
+  });
+  editor.trace.value = trace; // run counts, values, taken edges and faults on the canvas
+}
+</script>
+
+<template>
+  <WorkflowPalette :editor="editor" />
+  <WorkflowCanvas :editor="editor">
+    <!-- optional: replace one type's literal editor, keep the default for the rest -->
+    <template #widget="w">
+      <MyFilePicker v-if="w.type?.kind === 'con' && w.type.id === 'vertex.File'" v-bind="w" />
+      <WorkflowWidget v-else v-bind="w" />
+    </template>
+  </WorkflowCanvas>
+  <WorkflowDiagnostics :editor="editor" />
+</template>
+```
+
+`analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Colors are `--wf-*` CSS variables; `TypeDef.color` takes a palette name (`sky`, `rose`, …) or any CSS color. `bun run play` opens a playground with the §10 language and an in-memory vault.
+
 ## Scripts
 
-| Script              | Does                                    |
-| ------------------- | --------------------------------------- |
-| `bun run build`     | Bundle `src/core` → `dist/` + `.d.mts`  |
-| `bun run test`      | Run Vitest once (`test:watch` to watch) |
-| `bun run typecheck` | `tsc --noEmit`                          |
-| `bun run lint`      | Oxlint                                  |
-| `bun run format`    | Oxfmt (`format:check` to verify only)   |
-| `bun run check`     | lint + format:check + typecheck + test  |
-| `bun run changeset` | Record a change for the next release    |
+| Script              | Does                                                    |
+| ------------------- | ------------------------------------------------------- |
+| `bun run build`     | Bundle `src/core` and `src/vue` → `dist/` + `.d.mts`    |
+| `bun run play`      | Vite playground (`playground/`)                         |
+| `bun run test`      | Run Vitest once (`test:watch` to watch)                 |
+| `bun run typecheck` | vue-tsc (TypeScript 6.0.3) + TypeScript 7 on `src/core` |
+| `bun run lint`      | Oxlint                                                  |
+| `bun run format`    | Oxfmt (`format:check` to verify only)                   |
+| `bun run check`     | lint + format:check + typecheck + test                  |
+| `bun run changeset` | Record a change for the next release                    |
 
-Minimum supported TypeScript for consumers is **6.0.3**; CI typechecks against it. Subpath exports are listed by hand in `package.json`.
+Minimum supported TypeScript for consumers is **6.0.3**, the pinned dev `typescript`, so `typecheck` runs against it. vue-tsc needs the TypeScript API, which 7.0 lacks; TypeScript 7 (`typescript7`) checks `src/core` with no DOM lib. Subpath exports are listed by hand in `package.json`.
 
 ## Releasing
 

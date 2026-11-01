@@ -34,7 +34,17 @@ describe("§10 worked example", () => {
 
   test("trace follows the step table: pure nodes enter after their inputs", async () => {
     const { trace } = await run(vertex, archiveDrafts(), { event, effects: handlers() });
-    const iteration = [">n5", ">n4", "<n4", ">n6", "<n6", "<n5.then", ">n7", "<n7.then"];
+    const iteration = [
+      "~n3.body",
+      ">n5",
+      ">n4",
+      "<n4",
+      ">n6",
+      "<n6",
+      "<n5.then",
+      ">n7",
+      "<n7.then",
+    ];
     expect(formatTrace(trace)).toEqual([
       ">n1",
       "<n1.then",

@@ -29,6 +29,20 @@ describe("§10 worked example", () => {
     expect(a.convertedEdges.size).toBe(0);
   });
 
+  test("ports expand variadics and leave out unusable nodes", () => {
+    const doc = archiveDrafts();
+    doc.program.graph.nodes.push({ id: "n9", type: "vertex.nope", version: 1 });
+    const a = validate(doc, vertex.manifest);
+    expect(a.ports("n3")?.outputs.map(([n]) => n)).toEqual(["item", "index"]);
+    expect(a.ports("n6")?.inputs).toEqual([
+      ["arg0", { type: t("string"), required: true }],
+      ["arg1", { type: t("string"), required: true }],
+    ]);
+    expect(a.ports("n3")).toMatchObject({ execIn: ["exec"], execOut: ["body", "done"] });
+    expect(a.ports("n1")).toMatchObject({ execIn: [], execOut: ["then"], inputs: [] });
+    expect(a.ports("n9")).toBeUndefined();
+  });
+
   test("e7 rewired to n4.name → n5.file", () => {
     const doc = archiveDrafts();
     const e7 = doc.program.graph.edges.find((e) => e.id === "e7")!;
