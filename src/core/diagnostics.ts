@@ -12,6 +12,7 @@ export type DiagnosticCode =
   | "E_CROSS_GRAPH"
   | "E_FUNCTION_SHAPE"
   | "E_VARIADIC_COUNT"
+  | "E_INVALID_DOCUMENT"
   // Types
   | "E_TYPE_MISMATCH"
   | "E_NO_COMMON_TYPE"

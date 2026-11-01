@@ -8,7 +8,7 @@ export type SchemaTemplate = Record<string, unknown>;
 
 const TYPES = ["string", "number", "integer", "boolean", "array", "object"];
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -153,6 +153,7 @@ export function validateValue(
     return `${at}: expected ${JSON.stringify(schema.const)}`;
   }
   if (Array.isArray(schema.enum) && !schema.enum.some((x) => jsonEquals(x, value))) {
+    if (!schema.enum.length) return `${at}: no literal fits this type`;
     return `${at}: expected one of ${schema.enum.map((x) => JSON.stringify(x)).join(", ")}`;
   }
 

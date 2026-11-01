@@ -3,7 +3,11 @@ import { checkTemplate, instantiate, type SchemaTemplate } from "./schema";
 /** A type expression (§3.1). `con` applies a type constructor; `var` is a type variable. */
 export type TypeTerm =
   | { kind: "con"; id: string; args?: TypeTerm[] }
-  | { kind: "var"; name: string; rigid?: true };
+  /**
+   * `rigid`: a generic function's own type parameter inside its body, an opaque type that is only itself.
+   * `bound` (rigid only, set by the engine from the function's `typeParams`): what the parameter is known to be.
+   */
+  | { kind: "var"; name: string; rigid?: true; bound?: TypeTerm };
 
 /** `out` = covariant (read-only position), `inv` = invariant. */
 export type Variance = "out" | "inv";
@@ -21,16 +25,24 @@ export interface TypeDef {
   color?: string;
 }
 
-export function t(id: string, ...args: TypeTerm[]): TypeTerm {
-  return args.length ? { kind: "con", id, args } : { kind: "con", id };
+/** A constructor term whose type keeps the literal id and arguments, so typed run contexts can map it to values. */
+export type Con<I extends string = string, A extends TypeTerm[] = TypeTerm[]> = A extends []
+  ? { kind: "con"; id: I }
+  : { kind: "con"; id: I; args: A };
+
+export function t<const I extends string, A extends TypeTerm[]>(id: I, ...args: A): Con<I, A> {
+  // TS can't narrow the conditional return type of a generic function; both branches build exactly Con<I, A>.
+  return (args.length ? { kind: "con", id, args } : { kind: "con", id }) as Con<I, A>;
 }
 
-export function tvar(name: string): TypeTerm {
+export function tvar<const N extends string>(name: N): { kind: "var"; name: N } {
   return { kind: "var", name };
 }
 
+/** No unsolved variables. A rigid variable counts as ground: inside its function it's a fixed type. */
 export function isGround(term: TypeTerm): boolean {
-  return term.kind === "con" && (term.args ?? []).every(isGround);
+  if (term.kind === "var") return term.rigid === true;
+  return (term.args ?? []).every(isGround);
 }
 
 export function termEquals(a: TypeTerm, b: TypeTerm): boolean {
@@ -135,12 +147,17 @@ export class TypeTable {
     return undefined;
   }
 
-  /** `a <: b`: a value of type `a` can flow into `b`. Rigid variables satisfy only `T <: T` and `T <: any`. */
+  /**
+   * `a <: b`: a value of type `a` can flow into `b`. A rigid `T` is a subtype only of itself, of `any`,
+   * and of whatever its bound is a subtype of; nothing but `T` is a subtype of `T`.
+   */
   isSubtype(a: TypeTerm, b: TypeTerm): boolean {
     if (b.kind === "con" && b.id === "any") return true;
-    if (a.kind === "var" || b.kind === "var") {
-      return a.kind === "var" && b.kind === "var" && a.name === b.name;
+    if (a.kind === "var") {
+      if (b.kind === "var") return a.name === b.name;
+      return a.bound !== undefined && this.isSubtype(a.bound, b);
     }
+    if (b.kind === "var") return false;
     if (!a.args?.length && !b.args?.length) return this.#chains.get(a.id)?.includes(b.id) ?? false;
     if (a.id !== b.id) return false;
     const params = this.#defs.get(a.id)?.params ?? [];
@@ -156,7 +173,8 @@ export class TypeTable {
   join(a: TypeTerm, b: TypeTerm): TypeTerm | undefined {
     if (this.isSubtype(a, b)) return b;
     if (this.isSubtype(b, a)) return a;
-    if (a.kind === "var" || b.kind === "var") return undefined;
+    if (a.kind === "var") return a.bound ? this.join(a.bound, b) : undefined;
+    if (b.kind === "var") return b.bound ? this.join(a, b.bound) : undefined;
     if (a.args?.length || b.args?.length) {
       if (a.id !== b.id) return undefined;
       const params = this.#defs.get(a.id)?.params ?? [];
@@ -176,9 +194,10 @@ export class TypeTable {
     return common ? t(common) : undefined;
   }
 
-  /** Usable as a Dictionary key: a param-less type whose own def or an ancestor sets `key`. */
+  /** Usable as a Dictionary key: a param-less type whose own def or an ancestor sets `key`, or a rigid `T` bounded by one. */
   isKey(term: TypeTerm): boolean {
-    if (term.kind !== "con" || term.args?.length) return false;
+    if (term.kind === "var") return term.bound !== undefined && this.isKey(term.bound);
+    if (term.args?.length) return false;
     return this.#chains.get(term.id)?.some((id) => this.#defs.get(id)?.key) ?? false;
   }
 
@@ -187,7 +206,8 @@ export class TypeTable {
    * argument its schema references, has no schema. Schemas aren't inherited through `extends`.
    */
   schemaFor(term: TypeTerm): SchemaTemplate | undefined {
-    if (term.kind === "var") return undefined;
+    // A rigid T could be anything at a call site, so no literal fits it, but [] still fits List<T>.
+    if (term.kind === "var") return term.rigid ? { enum: [] } : undefined;
     const def = this.#defs.get(term.id);
     if (!def?.schema) return undefined;
     const key = term.args?.[0];

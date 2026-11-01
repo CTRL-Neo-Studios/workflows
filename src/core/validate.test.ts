@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { DocumentV1, EdgeInstance, NodeInstance } from "./document";
-import { archiveDrafts, std, vertex } from "./fixtures/section10";
+import type { DocumentV1, NodeInstance } from "./document";
+import { buildDocument, edge, type NodeSpec } from "./testing";
+import { archiveDrafts, vertex } from "./fixtures/section10";
+import { std } from "./std";
 import { defineLanguage } from "./language";
 import { formatType, t, tvar, type TypeTerm } from "./types";
 import { validate, type Analysis } from "./validate";
@@ -70,6 +72,10 @@ describe("§10 worked example", () => {
 const T = tvar("T");
 const List = (x: TypeTerm): TypeTerm => t("List", x);
 const Entry = t("vertex.Entry");
+/** These nodes are only validated, never run. */
+const notRun = (): never => {
+  throw new Error("validate-only node");
+};
 const lang = defineLanguage({ id: "t", version: 1, include: [std] })
   .type({ id: "vertex.Entry" })
   .type({ id: "vertex.File", extends: Entry })
@@ -83,7 +89,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     mode: "pure",
     label: "Note",
     outputs: { v: { type: t("vertex.Note") } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.folder",
@@ -91,7 +97,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     mode: "pure",
     label: "Folder",
     outputs: { v: { type: t("vertex.Folder") } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.num",
@@ -99,7 +105,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     mode: "pure",
     label: "Num",
     outputs: { v: { type: t("number") } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.path",
@@ -107,7 +113,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     mode: "pure",
     label: "Path",
     outputs: { v: { type: t("vertex.Path") } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.nested",
@@ -115,7 +121,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     mode: "pure",
     label: "Nested",
     outputs: { v: { type: List(List(t("string"))) } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.pair",
@@ -125,7 +131,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     typeParams: [{ name: "T" }],
     inputs: { a: { type: T }, b: { type: T } },
     outputs: { list: { type: List(T) } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.empty",
@@ -134,7 +140,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     label: "Empty",
     typeParams: [{ name: "T" }],
     outputs: { list: { type: List(T) } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.flatten",
@@ -144,7 +150,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     typeParams: [{ name: "T" }],
     inputs: { list: { type: List(List(T)) } },
     outputs: { list: { type: List(T) } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.dict",
@@ -154,7 +160,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     typeParams: [{ name: "K" }],
     inputs: { key: { type: tvar("K") } },
     outputs: { dict: { type: t("Dictionary", tvar("K"), t("number")) } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.keep",
@@ -164,7 +170,7 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
     typeParams: [{ name: "T", bound: Entry }],
     inputs: { x: { type: T } },
     outputs: { x: { type: T } },
-    run: () => ({}),
+    run: notRun,
   })
   .node({
     type: "t.wrap",
@@ -202,32 +208,8 @@ const lang = defineLanguage({ id: "t", version: 1, include: [std] })
   })
   .build();
 
-/** `nodes` as `id: type`, edges as `from.port>to.port`. */
-function check(
-  nodes: Record<string, string | Omit<NodeInstance, "id" | "version">>,
-  edges: string[],
-): Analysis {
-  const doc: DocumentV1 = {
-    format: 1,
-    language: { id: "t", version: 1 },
-    program: {
-      graph: {
-        nodes: Object.entries(nodes).map(([id, n]) =>
-          typeof n === "string" ? { id, type: n, version: 1 } : { id, version: 1, ...n },
-        ),
-        edges: edges.map((spec, i): EdgeInstance => {
-          const [from = "", to = ""] = spec.split(">");
-          const [fn = "", fp = ""] = from.split(".");
-          const [tn = "", tp = ""] = to.split(".");
-          return { id: `e${i + 1}`, from: { node: fn, port: fp }, to: { node: tn, port: tp } };
-        }),
-      },
-      variables: [],
-      functions: [],
-    },
-    view: { positions: {}, groups: [] },
-  };
-  return validate(doc, lang.manifest);
+function check(nodes: Record<string, NodeSpec>, edges: string[]): Analysis {
+  return validate(buildDocument(lang, { nodes, edges }), lang.manifest);
 }
 
 describe("inference", () => {
@@ -317,9 +299,7 @@ describe("inference", () => {
 const node = (doc: DocumentV1, id: string): NodeInstance =>
   doc.program.graph.nodes.find((n) => n.id === id)!;
 const addEdge = (doc: DocumentV1, id: string, from: string, to: string): void => {
-  const [fn = "", fp = ""] = from.split(".");
-  const [tn = "", tp = ""] = to.split(".");
-  doc.program.graph.edges.push({ id, from: { node: fn, port: fp }, to: { node: tn, port: tp } });
+  doc.program.graph.edges.push(edge(`${from}>${to}`, id));
 };
 describe("structure and literals", () => {
   test.each<[string, (doc: DocumentV1) => void, string[]]>([
@@ -336,11 +316,16 @@ describe("structure and literals", () => {
     ],
     ["outdated node", (d) => void (node(d, "n4").version = 0), ["E_NODE_OUTDATED"]],
     ["newer node", (d) => void (node(d, "n4").version = 2), ["E_NEWER_NODE"]],
-    ["unknown port", (d) => void (d.program.graph.edges[3]!.to.port = "nope"), ["E_UNKNOWN_PORT"]],
+    // n4.file loses its edge, so it also reports the missing required value.
+    [
+      "unknown port",
+      (d) => void (d.program.graph.edges[3]!.to.port = "nope"),
+      ["E_UNKNOWN_PORT", "E_REQUIRED_INPUT"],
+    ],
     [
       "prototype key is not a port",
       (d) => void (d.program.graph.edges[3]!.to.port = "constructor"),
-      ["E_UNKNOWN_PORT"],
+      ["E_UNKNOWN_PORT", "E_REQUIRED_INPUT"],
     ],
     ["exec into data", (d) => addEdge(d, "x", "n3.body", "n4.file"), ["E_KIND_MISMATCH"]],
     [
@@ -366,7 +351,14 @@ describe("structure and literals", () => {
           exec: true,
           inputs: {},
           outputs: {},
-          graph: { nodes: [{ id: "f1", type: "vertex.rename", version: 1 }], edges: [] },
+          graph: {
+            nodes: [
+              { id: "fe", type: "core.entry", version: 1 },
+              { id: "f1", type: "std.sequence", version: 1 },
+              { id: "fr", type: "core.return", version: 1 },
+            ],
+            edges: [],
+          },
         });
         addEdge(d, "x", "n7.then", "f1.exec");
       },

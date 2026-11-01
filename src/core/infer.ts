@@ -18,6 +18,8 @@ export interface Instance {
   /** Variadic port count. */
   variadic: number;
   vars: Map<string, TypeVar>;
+  /** `'main'` or the id of the function whose body holds the node. */
+  graph: string;
 }
 
 /** `sub <: sup`, each side read in the variable scope of its own instance. */
@@ -34,9 +36,10 @@ export interface Constraint {
  */
 const EXTRA_ROUNDS = 64;
 
-/** Substitutes pins and current solutions. Unsolved variables stay as they are. */
+/** Substitutes pins and current solutions. Unsolved variables stay as they are; rigid ones are fixed types. */
 export function resolve(term: TypeTerm, inst: Instance): TypeTerm {
   if (term.kind === "var") {
+    if (term.rigid) return term;
     const v = inst.vars.get(term.name);
     return v?.pin ?? v?.solution ?? term;
   }
@@ -44,9 +47,8 @@ export function resolve(term: TypeTerm, inst: Instance): TypeTerm {
 }
 
 function mentions(term: TypeTerm, name: string): boolean {
-  return term.kind === "var"
-    ? term.name === name
-    : (term.args ?? []).some((arg) => mentions(arg, name));
+  if (term.kind === "var") return !term.rigid && term.name === name;
+  return (term.args ?? []).some((arg) => mentions(arg, name));
 }
 
 interface Bounds {
@@ -151,7 +153,7 @@ function collect(
     if (isGround(ground)) of(v)[dir].set(formatType(ground), ground);
   };
   const freeVar = (term: TypeTerm, inst: Instance): TypeVar | undefined => {
-    const v = term.kind === "var" ? inst.vars.get(term.name) : undefined;
+    const v = term.kind === "var" && !term.rigid ? inst.vars.get(term.name) : undefined;
     return v && !v.pin ? v : undefined;
   };
   const decompose = (sub: TypeTerm, so: Instance, sup: TypeTerm, po: Instance): void => {
@@ -163,8 +165,8 @@ function collect(
       if (y) add(y, po, "lower", sub, so);
       return;
     }
-    const a = sub.kind === "var" ? so.vars.get(sub.name)?.pin : sub;
-    const b = sup.kind === "var" ? po.vars.get(sup.name)?.pin : sup;
+    const a = sub.kind === "var" && !sub.rigid ? so.vars.get(sub.name)?.pin : sub;
+    const b = sup.kind === "var" && !sup.rigid ? po.vars.get(sup.name)?.pin : sup;
     if (a?.kind !== "con" || b?.kind !== "con" || a.id !== b.id) return; // left for the check step
     for (const [i, param] of (types.get(a.id)?.params ?? []).entries()) {
       const ai = a.args?.[i];

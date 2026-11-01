@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { std, vertex } from "./fixtures/section10";
+import { vertex } from "./fixtures/section10";
+import { std } from "./std";
 import { defineLanguage } from "./language";
 import { checkManifest, type LanguageManifest, type NodeManifest } from "./manifest";
 import { t, tvar } from "./types";
@@ -14,8 +15,7 @@ describe("defineLanguage", () => {
     const { manifest } = vertex;
     expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest);
     expect(manifest.nodes.map((n) => n.type)).toEqual([
-      "std.forEach",
-      "std.concat",
+      ...std.manifest.nodes.map((n) => n.type),
       "vertex.onManual",
       "vertex.queryByTag",
       "vertex.fileName",
@@ -33,24 +33,102 @@ describe("defineLanguage", () => {
   });
 
   test("run must match the mode", () => {
-    // @ts-expect-error exec nodes need run
-    const missing = defineLanguage({ id: "x", version: 1 }).node({
-      type: "x.a",
-      version: 1,
-      mode: "exec",
-      label: "A",
-    });
+    const missing = defineLanguage({ id: "x", version: 1 })
+      // @ts-expect-error exec nodes need run
+      .node({
+        type: "x.a",
+        version: 1,
+        mode: "exec",
+        label: "A",
+      });
     expect(() => missing.build()).toThrow("Node 'x.a': run is required");
 
-    const extra = defineLanguage({ id: "x", version: 1 }).node({
-      type: "x.a",
-      version: 1,
-      mode: "event",
-      label: "A",
+    const extra = defineLanguage({ id: "x", version: 1 })
       // @ts-expect-error event nodes have no run
-      run: () => {},
-    });
+      .node({
+        type: "x.a",
+        version: 1,
+        mode: "event",
+        label: "A",
+        run: () => {},
+      });
     expect(() => extra.build()).toThrow("Node 'x.a': event nodes have no run");
+  });
+
+  // The assertions are the @ts-expect-error lines: `bun run typecheck` fails if any of them stops being an error.
+  test("contexts are typed from the node definition", () => {
+    interface Fx {
+      fs: { rename(file: string, name: string): Promise<string> };
+      net: { get(url: string): Promise<string> };
+    }
+    const builder = defineLanguage<Fx, { "x.File": string }>({ id: "x", version: 1 })
+      .type({ id: "x.File" })
+      .capability({ id: "fs", mutates: true, label: "Files" })
+      .capability({ id: "net", mutates: false, label: "Network" })
+      .node({
+        type: "x.rename",
+        version: 1,
+        mode: "exec",
+        label: "Rename",
+        exec: { out: ["then"] },
+        inputs: { file: { type: t("x.File"), required: true }, name: { type: str } },
+        outputs: { file: { type: t("x.File") } },
+        requires: ["fs"],
+        async run(ctx) {
+          const { file, name } = await ctx.inputs();
+          // @ts-expect-error an optional, unwired input may be undefined
+          const n: string = name;
+          ctx.output("file", await ctx.effects.fs.rename(file, name ?? n));
+          // @ts-expect-error only declared capabilities are in ctx.effects
+          void ctx.effects.net;
+          // @ts-expect-error unknown port
+          await ctx.input("fiel");
+          // @ts-expect-error wrong value type for the port
+          ctx.output("file", 1);
+          // @ts-expect-error unknown exec output
+          await ctx.fire("else");
+          return "then";
+        },
+      })
+      // @ts-expect-error run may only continue on a declared exec output (an arrow `run` reports at the call)
+      .node({
+        type: "x.bad",
+        version: 1,
+        mode: "exec",
+        label: "Bad",
+        exec: { out: ["then"] },
+        run: () => "nope",
+      })
+      .node({
+        type: "x.count",
+        version: 1,
+        mode: "pure",
+        label: "Count",
+        typeParams: [{ name: "T" }],
+        inputs: {
+          list: { type: t("List", tvar("T")), required: true },
+          scale: { type: num, default: 1 },
+        },
+        variadic: { kind: "input", prefix: "arg", type: str },
+        outputs: { n: { type: num } },
+        run: ({ inputs }) => {
+          // Generic parts are unknown, built-ins map to their values, defaults make an input present.
+          // A variadic port may be past this instance's count, so it's `string | undefined`.
+          const items: readonly unknown[] = inputs.list;
+          const first: string = inputs.arg0 ?? "";
+          return { n: items.length * inputs.scale + first.length };
+        },
+      })
+      .node({
+        type: "x.wrong",
+        version: 1,
+        mode: "pure",
+        label: "Wrong",
+        outputs: { n: { type: num } },
+        // @ts-expect-error outputs must have their declared types
+        run: () => ({ n: "1" }),
+      });
+    expect(() => builder.build()).not.toThrow();
   });
 
   test("an included node type can't be redefined", () => {

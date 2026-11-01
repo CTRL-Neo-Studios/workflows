@@ -10,6 +10,8 @@
   "sideEffects": false,
   "exports": {
     "./core": "./dist/core/index.mjs",
+    "./core/std": "./dist/core/std/index.mjs",
+    "./core/testing": "./dist/core/testing/index.mjs",
     "./package.json": "./package.json"
   },
   "scripts": {

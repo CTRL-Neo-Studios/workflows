@@ -4,7 +4,22 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="feat: Add document validation with type inference and diagnostics" />
+    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="feat: Validate function bodies with `core` entry, return and call nodes">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/diagnostics.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/diagnostics.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/fixtures/section10.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/fixtures/section10.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/infer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/infer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/language.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/language.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/language.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/language.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/validate.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/validate.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/validate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/validate.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsdown.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tsdown.config.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -135,7 +150,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1793496424936</updated>
-      <workItem from="1793496425937" duration="2164000" />
+      <workItem from="1793496425937" duration="3734000" />
     </task>
     <task id="LOCAL-00001" summary="chore: Add core type system and expose it via `./core` export">
       <option name="closed" value="true" />
@@ -169,7 +184,15 @@
       <option name="project" value="LOCAL" />
       <updated>1793500489910</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="test: Add `validate` coverage and scale inference rounds to chain length">
+      <option name="closed" value="true" />
+      <created>1793506035440</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1793506035440</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -180,6 +203,8 @@
     <MESSAGE value="feat: Add type schema instantiation and value validation" />
     <MESSAGE value="feat: Add document schema, language builder and manifest validation" />
     <MESSAGE value="feat: Add document validation with type inference and diagnostics" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Add document validation with type inference and diagnostics" />
+    <MESSAGE value="test: Add `validate` coverage and scale inference rounds to chain length" />
+    <MESSAGE value="feat: Validate function bodies with `core` entry, return and call nodes" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Validate function bodies with `core` entry, return and call nodes" />
   </component>
 </project>

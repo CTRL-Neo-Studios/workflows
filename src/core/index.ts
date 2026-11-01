@@ -11,20 +11,26 @@ export type {
   VariableDecl,
   View,
 } from "./document";
+export { hashProgram } from "./hash";
 export {
   defineLanguage,
   LanguageBuilder,
   type ConversionImpl,
   type DocumentMigration,
+  type EventNodeDef,
   type ExecContext,
+  type ExecNodeDef,
   type ExecRun,
+  type InputValues,
   type Language,
   type LanguageOptions,
-  type NodeDef,
   type NodeImpl,
   type NodeMigration,
+  type OutputValues,
   type PureContext,
+  type PureNodeDef,
   type PureRun,
+  type ValueOf,
 } from "./language";
 export {
   conversionKey,
@@ -37,7 +43,20 @@ export {
   type TypeParamDef,
   type VariadicDef,
 } from "./manifest";
+export { DOCUMENT_FORMAT, migrate, type MigrateResult } from "./migrate";
 export type { Json, SchemaTemplate } from "./schema";
+export {
+  compile,
+  CompileError,
+  FaultError,
+  type CompiledProgram,
+  type Fault,
+  type FaultCode,
+  type RunLimits,
+  type RunOptions,
+  type RunResult,
+  type TraceEvent,
+} from "./runtime";
 export {
   BUILTIN_TYPES,
   formatType,

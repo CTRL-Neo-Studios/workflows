@@ -4,33 +4,103 @@ import {
   checkManifest,
   type ConversionDef,
   conversionKey,
+  type DataPortDef,
   type LanguageManifest,
   type NodeManifest,
+  type VariadicDef,
 } from "./manifest";
+import type { Json } from "./schema";
 import type { TypeDef } from "./types";
 
-export interface PureContext<E> {
-  inputs: Record<string, unknown>;
-  /** Narrowed to the node's `requires`. */
+/**
+ * The TypeScript type of a term's run-time values (§3.2). `V` maps the language's own type ids to their value types;
+ * built-ins map themselves, `List` is a readonly array, `Dictionary` a `ReadonlyMap`. Variables and unmapped ids
+ * (`any` included) are `unknown`.
+ */
+export type ValueOf<T, V> = T extends { kind: "var" }
+  ? unknown
+  : T extends { kind: "con"; id: "string" }
+    ? string
+    : T extends { kind: "con"; id: "number" }
+      ? number
+      : T extends { kind: "con"; id: "boolean" }
+        ? boolean
+        : T extends { kind: "con"; id: "List"; args: [infer X] }
+          ? readonly ValueOf<X, V>[]
+          : T extends { kind: "con"; id: "Dictionary"; args: [infer K, infer X] }
+            ? ReadonlyMap<ValueOf<K, V>, ValueOf<X, V>>
+            : T extends { kind: "con"; id: infer I extends keyof V }
+              ? V[I]
+              : unknown;
+
+type Ports = Record<string, DataPortDef>;
+
+/** An input is `undefined` when nothing is wired, no literal is set and it has no default. */
+export type InputValues<I, V> = {
+  [P in keyof I]: I[P] extends DataPortDef
+    ?
+        | ValueOf<I[P]["type"], V>
+        | (I[P] extends { required: true } | { default: Json } ? never : undefined)
+    : never;
+};
+
+export type OutputValues<O, V> = {
+  [P in keyof O]: O[P] extends DataPortDef ? ValueOf<O[P]["type"], V> : never;
+};
+
+/** Variadic inputs (`arg0`, `arg1`, …); each one needs an edge or a literal, so none is `undefined`. */
+type VariadicInputs<VD, V> = [VD] extends [
+  { kind: "input"; prefix: infer P extends string; type: infer T },
+]
+  ? { [K in `${P}${number}`]: ValueOf<T, V> }
+  : unknown;
+
+type VariadicOuts<VD> = [VD] extends [{ kind: "execOut"; prefix: infer P extends string }]
+  ? `${P}${number}`
+  : never;
+
+/** `I`: input values, `E`: effects (only the node's `requires`). Untyped by default. */
+export interface PureContext<E, I = Record<string, unknown>> {
+  inputs: I;
+  /** Only the capabilities in the node's `requires`; the others are absent at run time. */
   effects: E;
   signal: AbortSignal;
+  /** This instance's variadic port count. */
+  variadic: number;
 }
 
-export interface ExecContext<E> {
-  input(port: string): Promise<unknown>;
-  inputs(): Promise<Record<string, unknown>>;
-  output(port: string, value: unknown): void;
-  /** Runs the chain connected to `port` and resolves when it finishes. Rejects with that chain's fault. */
-  fire(port: string, opts?: { scope?: true | Record<string, unknown> }): Promise<void>;
+/** `I` / `O`: input and output values, `X`: exec output names. Untyped by default. */
+export interface ExecContext<
+  E,
+  I = Record<string, unknown>,
+  O = Record<string, unknown>,
+  X extends string = string,
+> {
+  input<P extends keyof I & string>(port: P): Promise<I[P]>;
+  inputs(): Promise<I>;
+  output<P extends keyof O & string>(port: P, value: O[P]): void;
+  /**
+   * Runs the chain connected to `port` and resolves when it finishes; an unconnected port resolves at once.
+   * Rejects with that chain's fault. `scope` runs it in a child scope; values become this node's outputs there.
+   */
+  fire(port: X, opts?: { scope?: true | Record<string, unknown> }): Promise<void>;
+  /** Only the capabilities in the node's `requires`; the others are absent at run time. */
   effects: E;
   signal: AbortSignal;
+  /** This instance's variadic port count. */
+  variadic: number;
 }
 
-export type PureRun<E> = (
-  ctx: PureContext<E>,
-) => Record<string, unknown> | Promise<Record<string, unknown>>;
+export type PureRun<E, I = Record<string, unknown>, O = Record<string, unknown>> = (
+  ctx: PureContext<E, I>,
+) => O | Promise<O>;
 /** The returned exec output continues the chain; `void` ends it. */
-export type ExecRun<E> = (ctx: ExecContext<E>) => string | void | Promise<string | void>;
+export type ExecRun<
+  E,
+  I = Record<string, unknown>,
+  O = Record<string, unknown>,
+  X extends string = string,
+> = (ctx: ExecContext<E, I, O, X>) => X | void | Promise<X | void>;
 
 /** Version n → n+1. */
 export type NodeMigration = (node: NodeInstance) => NodeInstance;
@@ -52,12 +122,52 @@ export interface Language<E> {
   migrate?: Record<number, DocumentMigration>;
 }
 
-/** A node manifest plus its implementation; the mode decides which `run` it takes. */
-export type NodeDef<E> = NodeManifest & { migrate?: Record<number, NodeMigration> } & (
-    | { mode: "pure" | "once"; run: PureRun<E> }
-    | { mode: "exec"; run: ExecRun<E> }
-    | { mode: "event" }
-  );
+type NodeBase = Omit<
+  NodeManifest,
+  "mode" | "exec" | "inputs" | "outputs" | "variadic" | "requires"
+> & {
+  migrate?: Record<number, NodeMigration>;
+};
+
+/**
+ * An exec node. Port names, value types, exec outputs and capabilities are checked against the definition:
+ * `ctx.input('typo')`, a wrong `output` value, `return 'unknown'` or `ctx.effects.undeclared` don't compile.
+ */
+export type ExecNodeDef<E, V, I, O, X extends string, R extends keyof E, VD> = NodeBase & {
+  mode: "exec";
+  exec?: { in?: string[]; out: X[] };
+  inputs?: I;
+  outputs?: O;
+  variadic?: VD;
+  requires?: R[];
+  run(
+    ctx: ExecContext<
+      Pick<E, R>,
+      InputValues<I, V> & VariadicInputs<VD, V>,
+      OutputValues<O, V>,
+      X | VariadicOuts<VD>
+    >,
+  ): NoInfer<X | VariadicOuts<VD>> | void | Promise<NoInfer<X | VariadicOuts<VD>> | void>;
+};
+
+/** A pure or once node: `run` must return every declared output, with its declared type. */
+export type PureNodeDef<E, V, I, O, R extends keyof E, VD> = NodeBase & {
+  mode: "pure" | "once";
+  inputs?: I;
+  outputs?: O;
+  variadic?: VD;
+  requires?: R[];
+  run(
+    ctx: PureContext<Pick<E, R>, InputValues<I, V> & VariadicInputs<VD, V>>,
+  ): NoInfer<OutputValues<O, V>> | Promise<NoInfer<OutputValues<O, V>>>;
+};
+
+export type EventNodeDef<O> = NodeBase & {
+  mode: "event";
+  exec?: { out: string[] };
+  outputs?: O;
+  run?: never;
+};
 
 export interface ConversionImpl extends ConversionDef {
   convert: (value: unknown) => unknown;
@@ -71,12 +181,16 @@ export interface LanguageOptions {
   migrate?: Record<number, DocumentMigration>;
 }
 
-export class LanguageBuilder<E extends object> {
+/** What the builder keeps per node: the manifest plus its implementation, untyped. */
+type StoredNode<E> = NodeManifest & NodeImpl<E>;
+
+/** `E`: effect interface keyed by capability id. `V`: value types of the language's own type ids. */
+export class LanguageBuilder<E extends object, V = {}> {
   readonly #options: LanguageOptions;
   readonly #types: TypeDef[] = [];
   readonly #capabilities: CapabilityDef[] = [];
   readonly #conversions: ConversionImpl[] = [];
-  readonly #nodes: NodeDef<E>[] = [];
+  readonly #nodes: StoredNode<E>[] = [];
 
   constructor(options: LanguageOptions) {
     this.#options = options;
@@ -97,8 +211,18 @@ export class LanguageBuilder<E extends object> {
     return this;
   }
 
-  node(def: NodeDef<E>): this {
-    this.#nodes.push(def);
+  node<
+    const I extends Ports = {},
+    const O extends Ports = {},
+    const X extends string = never,
+    const R extends keyof E & string = never,
+    const VD extends VariadicDef | undefined = undefined,
+  >(
+    def: ExecNodeDef<E, V, I, O, X, R, VD> | PureNodeDef<E, V, I, O, R, VD> | EventNodeDef<O>,
+  ): this {
+    // The typed `run` expects a context narrowed to the declared ports. The runtime builds exactly that context for
+    // a validated program, so storing it under the untyped signature is safe.
+    this.#nodes.push(def as unknown as StoredNode<E>);
     return this;
   }
 
@@ -110,7 +234,7 @@ export class LanguageBuilder<E extends object> {
 
     const nodeManifests: NodeManifest[] = [];
     for (const def of this.#nodes) {
-      const { run, migrate: nodeMigrate, ...manifest }: NodeManifest & NodeImpl<E> = def;
+      const { run, migrate: nodeMigrate, ...manifest } = def;
       const needsRun = def.mode !== "event";
       if (needsRun !== (typeof run === "function")) {
         throw new Error(
@@ -139,9 +263,12 @@ export class LanguageBuilder<E extends object> {
   }
 }
 
-/** `E` is the language's effect interface, keyed by capability id. */
-export function defineLanguage<E extends object = object>(
+/**
+ * `E` is the language's effect interface, keyed by capability id. `V` maps the language's type ids to the
+ * TypeScript types of their values, e.g. `{ "vertex.File": string }`, so node contexts are typed.
+ */
+export function defineLanguage<E extends object = object, V = {}>(
   options: LanguageOptions,
-): LanguageBuilder<E> {
-  return new LanguageBuilder<E>(options);
+): LanguageBuilder<E, V> {
+  return new LanguageBuilder<E, V>(options);
 }

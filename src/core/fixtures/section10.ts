@@ -1,6 +1,8 @@
 // The language and document behind the spec's §10 worked example. Shared by tests; not part of the package.
-import type { DocumentV1, EdgeInstance } from "../document";
+import type { DocumentV1 } from "../document";
 import { defineLanguage, type Language } from "../language";
+import { std } from "../std";
+import { buildDocument } from "../testing";
 import { t, tvar } from "../types";
 
 export interface VertexEffects {
@@ -11,40 +13,16 @@ export interface VertexEffects {
   };
 }
 
+/** Value types of the language's own type ids: a file is its path. */
+interface VertexValues {
+  "vertex.File": string;
+}
+
 const T = tvar("T");
 const str = t("string");
 const File = t("vertex.File");
 
-export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
-  .node({
-    type: "std.forEach",
-    version: 1,
-    mode: "exec",
-    label: "For Each",
-    typeParams: [{ name: "T" }],
-    exec: { out: ["body", "done"] },
-    inputs: { list: { type: t("List", T) } },
-    outputs: { item: { type: T }, index: { type: t("number") } },
-    async run(ctx) {
-      const list = await ctx.input("list");
-      if (!Array.isArray(list)) throw new TypeError("list is not an array");
-      for (const [index, item] of list.entries())
-        await ctx.fire("body", { scope: { item, index } });
-      return "done";
-    },
-  })
-  .node({
-    type: "std.concat",
-    version: 1,
-    mode: "pure",
-    label: "Concat",
-    variadic: { kind: "input", prefix: "arg", type: str, min: 1 },
-    outputs: { out: { type: str } },
-    run: ({ inputs }) => ({ out: Object.values(inputs).join("") }),
-  })
-  .build();
-
-export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects>({
+export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects, VertexValues>({
   id: "vertex",
   version: 1,
   include: [std],
@@ -67,20 +45,16 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects>({
     inputs: { tag: { type: str, wire: false, required: true } },
     outputs: { files: { type: t("List", File) } },
     requires: ["index"],
-    run: async ({ inputs, effects }) => ({ files: await effects.index.byTag(String(inputs.tag)) }),
+    run: async ({ inputs, effects }) => ({ files: await effects.index.byTag(inputs.tag) }),
   })
   .node({
     type: "vertex.fileName",
     version: 1,
     mode: "pure",
     label: "File Name",
-    inputs: { file: { type: File } },
+    inputs: { file: { type: File, required: true } },
     outputs: { name: { type: str } },
-    run: ({ inputs }) => ({
-      name: String(inputs.file)
-        .replace(/^.*\//, "")
-        .replace(/\.[^.]*$/, ""),
-    }),
+    run: ({ inputs }) => ({ name: inputs.file.replace(/^.*\//, "").replace(/\.[^.]*$/, "") }),
   })
   .node({
     type: "vertex.rename",
@@ -88,12 +62,12 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects>({
     mode: "exec",
     label: "Rename",
     exec: { out: ["then"] },
-    inputs: { file: { type: File }, newName: { type: str } },
+    inputs: { file: { type: File, required: true }, newName: { type: str, required: true } },
     outputs: { file: { type: File } },
     requires: ["fs"],
     async run(ctx) {
       const { file, newName } = await ctx.inputs();
-      ctx.output("file", await ctx.effects.fs.rename(String(file), String(newName)));
+      ctx.output("file", await ctx.effects.fs.rename(file, newName));
       return "then";
     },
   })
@@ -104,59 +78,46 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects>({
     label: "Set Property",
     typeParams: [{ name: "T" }],
     exec: { out: ["then"] },
-    inputs: { file: { type: File }, key: { type: str }, value: { type: T } },
+    inputs: {
+      file: { type: File, required: true },
+      key: { type: str, required: true },
+      value: { type: T, required: true },
+    },
     requires: ["fs"],
     async run(ctx) {
       const { file, key, value } = await ctx.inputs();
-      await ctx.effects.fs.setProperty(String(file), String(key), value);
+      await ctx.effects.fs.setProperty(file, key, value);
       return "then";
     },
   })
   .build();
 
-function edge(id: string, from: string, to: string): EdgeInstance {
-  const [fn = "", fp = ""] = from.split(".");
-  const [tn = "", tp = ""] = to.split(".");
-  return { id, from: { node: fn, port: fp }, to: { node: tn, port: tp } };
-}
-
 /** "Archive every file tagged `draft`". Returns a fresh copy, so tests may mutate it. */
 export function archiveDrafts(): DocumentV1 {
-  return {
-    format: 1,
-    language: { id: "vertex", version: 1 },
-    program: {
-      graph: {
-        nodes: [
-          { id: "n1", type: "vertex.onManual", version: 1 },
-          { id: "n2", type: "vertex.queryByTag", version: 1, literals: { tag: "draft" } },
-          { id: "n3", type: "std.forEach", version: 1 },
-          { id: "n4", type: "vertex.fileName", version: 1 },
-          { id: "n5", type: "vertex.rename", version: 1 },
-          { id: "n6", type: "std.concat", version: 1, variadic: 2, literals: { arg1: "_archive" } },
-          {
-            id: "n7",
-            type: "vertex.setProperty",
-            version: 1,
-            literals: { key: "status", value: "archived" },
-            typeArgs: { T: t("string") },
-          },
-        ],
-        edges: [
-          edge("e1", "n1.then", "n3.exec"),
-          edge("e2", "n2.files", "n3.list"),
-          edge("e3", "n3.body", "n5.exec"),
-          edge("e4", "n3.item", "n4.file"),
-          edge("e5", "n4.name", "n6.arg0"),
-          edge("e6", "n6.out", "n5.newName"),
-          edge("e7", "n3.item", "n5.file"),
-          edge("e8", "n5.then", "n7.exec"),
-          edge("e9", "n5.file", "n7.file"),
-        ],
+  return buildDocument(vertex, {
+    nodes: {
+      n1: "vertex.onManual",
+      n2: { type: "vertex.queryByTag", literals: { tag: "draft" } },
+      n3: "std.forEach",
+      n4: "vertex.fileName",
+      n5: "vertex.rename",
+      n6: { type: "std.concat", variadic: 2, literals: { arg1: "_archive" } },
+      n7: {
+        type: "vertex.setProperty",
+        literals: { key: "status", value: "archived" },
+        typeArgs: { T: str },
       },
-      variables: [],
-      functions: [],
     },
-    view: { positions: {}, groups: [] },
-  };
+    edges: [
+      "n1.then > n3.exec",
+      "n2.files > n3.list",
+      "n3.body > n5.exec",
+      "n3.item > n4.file",
+      "n4.name > n6.arg0",
+      "n6.out > n5.newName",
+      "n3.item > n5.file",
+      "n5.then > n7.exec",
+      "n5.file > n7.file",
+    ],
+  });
 }

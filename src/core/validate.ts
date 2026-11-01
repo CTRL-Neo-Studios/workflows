@@ -1,7 +1,14 @@
 import type { Diagnostic, DiagnosticCode, DiagnosticLocation } from "./diagnostics";
-import type { DocumentV1, EdgeInstance } from "./document";
+import type { DocumentV1, EdgeInstance, Graph } from "./document";
 import { type Constraint, type Instance, resolve, solve, type TypeVar } from "./infer";
 import { checkManifest, conversionKey, type DataPortDef, type LanguageManifest } from "./manifest";
+import {
+  coreManifest,
+  declarations,
+  type Declarations,
+  docTerm,
+  type FunctionInfo,
+} from "./program";
 import { type Json, validateValue } from "./schema";
 import { formatType, isGround, type TypeTable, type TypeTerm } from "./types";
 
@@ -11,19 +18,17 @@ export interface Analysis {
   typeOf(node: string, port: string, dir: "in" | "out"): TypeTerm | undefined;
   /** Edges whose value goes through a `ConversionDef`. */
   convertedEdges: ReadonlySet<string>;
-  /** Capabilities of every node reachable from an event node (§7). */
+  /** Capabilities of every node reachable from an event node, including through called functions (§7). */
   capabilities: ReadonlySet<string>;
 }
 
-/** Type arguments come from untrusted documents; recursion over them must stay shallow. */
-const MAX_TYPE_DEPTH = 32;
 // ponytail: fixed cap on document-chosen variadic counts; make it a manifest/limit option if a language needs more.
 const MAX_VARIADIC = 1024;
 
 type Port = { kind: "exec" } | { kind: "data"; def: DataPortDef };
 const EXEC: Port = { kind: "exec" };
 
-interface DataEdge {
+export interface DataEdge {
   edge: EdgeInstance;
   from: Instance;
   out: DataPortDef;
@@ -31,16 +36,10 @@ interface DataEdge {
   in: DataPortDef;
 }
 
-interface ExecEdge {
+export interface ExecEdge {
   edge: EdgeInstance;
   from: Instance;
   to: Instance;
-}
-
-/** Stops descending at `max`, so a hostile 100k-deep term costs `max` steps, not a stack overflow. */
-function deeperThan(term: TypeTerm, max: number): boolean {
-  if (max <= 0) return true;
-  return term.kind === "con" && (term.args ?? []).some((arg) => deeperThan(arg, max - 1));
 }
 
 /** `${prefix}${i}` with 0 <= i < n, no leading zeros. */
@@ -70,7 +69,7 @@ function outputPort(inst: Instance, name: string): Port | undefined {
 }
 
 /** Every data input, variadic ones included, with whether it needs a value. */
-function dataInputs(inst: Instance): [string, DataPortDef, boolean][] {
+export function dataInputs(inst: Instance): [string, DataPortDef, boolean][] {
   const m = inst.manifest;
   const ports: [string, DataPortDef, boolean][] = Object.entries(m.inputs ?? {}).map(
     ([name, def]) => [name, def, def.required === true],
@@ -133,11 +132,57 @@ function backEdges<T extends { from: Instance; to: Instance; edge: EdgeInstance 
   return found;
 }
 
+/** A function body's entry and return instances, when present. */
+export interface Body {
+  entry?: Instance;
+  ret?: Instance;
+}
+
+/** What `compile` needs beyond the public `Analysis`. */
+export interface Analyzed {
+  analysis: Analysis;
+  instances: ReadonlyMap<string, Instance>;
+  execEdges: readonly ExecEdge[];
+  dataEdges: readonly DataEdge[];
+  decls: Declarations;
+  bodies: ReadonlyMap<string, Body>;
+  /** core.call → its callee's entry and return, so reachability follows calls. */
+  calls: ReadonlyMap<Instance, Instance[]>;
+}
+
+/** Capabilities of the nodes reachable from `starts`: forward along exec edges and calls, backward along data edges. */
+export function reachableCapabilities(starts: Iterable<Instance>, analyzed: Analyzed): Set<string> {
+  const next = new Map<Instance, Instance[]>(analyzed.calls);
+  for (const e of analyzed.execEdges) next.set(e.from, [...(next.get(e.from) ?? []), e.to]);
+  for (const e of analyzed.dataEdges) next.set(e.to, [...(next.get(e.to) ?? []), e.from]);
+  const stack = [...starts];
+  const reached = new Set(stack);
+  while (stack.length) {
+    for (const n of next.get(stack.pop()!) ?? []) {
+      if (reached.has(n)) continue;
+      reached.add(n);
+      stack.push(n);
+    }
+  }
+  const capabilities = new Set<string>();
+  for (const inst of reached) for (const id of inst.manifest.requires ?? []) capabilities.add(id);
+  return capabilities;
+}
+
+/** Event nodes that start a run; a function's entry looks like one but only a call starts it. */
+export function isEvent(inst: Instance): boolean {
+  return inst.manifest.mode === "event" && inst.node.type !== "core.entry";
+}
+
 /**
  * Checks a document against a language manifest without running anything (§3.4, §6.1).
  * Needs only the manifest, so editors can validate any language. Throws only if the manifest itself is invalid.
  */
 export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis {
+  return analyze(doc, manifest).analysis;
+}
+
+export function analyze(doc: DocumentV1, manifest: LanguageManifest): Analyzed {
   const lang = checkManifest(manifest);
   const types = lang.types;
   const diagnostics: Diagnostic[] = [];
@@ -147,8 +192,12 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     );
   };
   const instances = new Map<string, Instance>();
+  const execEdges: ExecEdge[] = [];
+  const dataEdges: DataEdge[] = [];
   const convertedEdges = new Set<string>();
   const capabilities = new Set<string>();
+  const bodies = new Map<string, Body>();
+  const calls = new Map<Instance, Instance[]>();
   const analysis: Analysis = {
     diagnostics,
     typeOf(node, port, dir) {
@@ -160,36 +209,55 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     convertedEdges,
     capabilities,
   };
+  const empty: Declarations = { variables: new Map(), functions: new Map() };
+  const analyzed: Analyzed = {
+    analysis,
+    instances,
+    execEdges,
+    dataEdges,
+    decls: empty,
+    bodies,
+    calls,
+  };
 
   if (doc.format !== 1) {
     report("E_NEWER_FORMAT", `Document format ${String(doc.format)} is not supported (expected 1)`);
-    return analysis;
+    return analyzed;
   }
   if (doc.language.id !== manifest.language.id) {
     report(
       "E_LANGUAGE_MISMATCH",
       `Document is for '${doc.language.id}', not '${manifest.language.id}'`,
     );
-    return analysis;
+    return analyzed;
   }
   if (doc.language.version > manifest.language.version) {
     report(
       "E_NEWER_LANGUAGE",
       `Document needs ${doc.language.id} v${doc.language.version}; this is v${manifest.language.version}`,
     );
-    return analysis;
+    return analyzed;
   }
 
-  // Ids are unique across the whole document; remember which graph owns each node.
-  // ponytail: function bodies are only scanned for ids here; validating them is M3.
-  const graphs = [
-    { id: "main", graph: doc.program.graph },
-    ...doc.program.functions.map((f) => ({ id: f.id, graph: f.graph })),
+  const decls = declarations(doc, types, report);
+  analyzed.decls = decls;
+
+  // Node and edge ids are unique across the whole document; remember which graph owns each node.
+  const graphs: { id: string; graph: Graph; fn: FunctionInfo | undefined }[] = [
+    { id: "main", graph: doc.program.graph, fn: undefined },
+    ...doc.program.functions.flatMap((f) => {
+      const fn = decls.functions.get(f.id);
+      // A function that failed its declaration checks was reported; its body isn't checked further.
+      return fn?.decl === f ? [{ id: f.id, graph: f.graph, fn }] : [];
+    }),
   ];
   const graphOf = new Map<string, string>();
   const edgeIds = new Set<string>();
   const dupEdges = new Set<EdgeInstance>();
-  for (const { id, graph } of graphs) {
+  for (const { id, graph } of [
+    { id: "main", graph: doc.program.graph },
+    ...doc.program.functions.map((f) => ({ id: f.id, graph: f.graph })),
+  ]) {
     for (const node of graph.nodes) {
       if (graphOf.has(node.id))
         report("E_DUPLICATE_ID", `Duplicate node id '${node.id}'`, { node: node.id });
@@ -204,116 +272,169 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     }
   }
 
-  // Instances. A node whose shape can't be trusted (unknown type, other version, bad variadic count) is reported
-  // once and then left out, so its edges don't pile up follow-on errors.
-  for (const node of doc.program.graph.nodes) {
-    if (graphOf.get(node.id) !== "main" || instances.has(node.id)) continue;
-    const at = { node: node.id };
-    const m = lang.nodes.get(node.type);
-    if (!m) {
-      report("E_UNKNOWN_NODE_TYPE", `Unknown node type '${node.type}'`, at);
-      continue;
-    }
-    if (node.version > m.version) {
-      report("E_NEWER_NODE", `${node.type} v${node.version} is newer than v${m.version}`, at);
-      continue;
-    }
-    if (node.version < m.version) {
-      report(
-        "E_NODE_OUTDATED",
-        `${node.type} v${node.version} needs migrating to v${m.version}`,
-        at,
-      );
-      continue;
-    }
-    const v = m.variadic;
-    const n = node.variadic ?? v?.min ?? 0;
-    if (!v && node.variadic !== undefined) {
-      report("E_VARIADIC_COUNT", `${node.type} has no variadic ports`, at);
-      continue;
-    }
-    if (
-      v &&
-      (!Number.isInteger(n) || n < (v.min ?? 0) || n > Math.min(v.max ?? Infinity, MAX_VARIADIC))
-    ) {
-      report("E_VARIADIC_COUNT", `Variadic count ${n} is out of range for ${node.type}`, at);
-      continue;
-    }
-
-    const vars = new Map<string, TypeVar>();
-    for (const p of m.typeParams ?? [])
-      vars.set(p.name, p.bound ? { name: p.name, bound: p.bound } : { name: p.name });
-    for (const [name, term] of Object.entries(node.typeArgs ?? {})) {
-      const tv = vars.get(name);
-      if (!tv) {
-        report("E_INVALID_TYPE", `${node.type} has no type parameter '${name}'`, at);
+  // Instances. A node whose shape can't be trusted (unknown type, other version, bad variadic count, bad ref) is
+  // reported once and then left out, so its edges don't pile up follow-on errors.
+  for (const {
+    id: graph,
+    graph: { nodes },
+    fn,
+  } of graphs) {
+    for (const node of nodes) {
+      if (graphOf.get(node.id) !== graph || instances.has(node.id)) continue;
+      const at = { node: node.id };
+      let m = lang.nodes.get(node.type);
+      if (node.type.startsWith("core.")) {
+        const core = coreManifest(node, fn, decls);
+        if ("code" in core) {
+          report(core.code, core.message, at);
+          continue;
+        }
+        m = core;
+      }
+      if (!m) {
+        report("E_UNKNOWN_NODE_TYPE", `Unknown node type '${node.type}'`, at);
         continue;
       }
-      const problem = deeperThan(term, MAX_TYPE_DEPTH)
-        ? `Type argument ${name} is nested deeper than ${MAX_TYPE_DEPTH}`
-        : (types.check(term) ??
-          (isGround(term) ? undefined : `Type argument ${name} must be concrete`));
-      if (problem) report("E_INVALID_TYPE", problem, at);
-      else if (tv.bound && !types.isSubtype(term, tv.bound)) {
+      if (node.version > m.version) {
+        report("E_NEWER_NODE", `${node.type} v${node.version} is newer than v${m.version}`, at);
+        continue;
+      }
+      if (node.version < m.version) {
         report(
-          "E_TYPE_MISMATCH",
-          `${name} = ${formatType(term)} is not a ${formatType(tv.bound)}`,
+          "E_NODE_OUTDATED",
+          `${node.type} v${node.version} needs migrating to v${m.version}`,
           at,
         );
-      } else tv.pin = term;
+        continue;
+      }
+      const v = m.variadic;
+      const n = node.variadic ?? v?.min ?? 0;
+      if (!v && node.variadic !== undefined) {
+        report("E_VARIADIC_COUNT", `${node.type} has no variadic ports`, at);
+        continue;
+      }
+      if (
+        v &&
+        (!Number.isInteger(n) || n < (v.min ?? 0) || n > Math.min(v.max ?? Infinity, MAX_VARIADIC))
+      ) {
+        report("E_VARIADIC_COUNT", `Variadic count ${n} is out of range for ${node.type}`, at);
+        continue;
+      }
+
+      const vars = new Map<string, TypeVar>();
+      for (const p of m.typeParams ?? [])
+        vars.set(p.name, p.bound ? { name: p.name, bound: p.bound } : { name: p.name });
+      for (const [name, term] of Object.entries(node.typeArgs ?? {})) {
+        const tv = vars.get(name);
+        if (!tv) {
+          report("E_INVALID_TYPE", `${node.type} has no type parameter '${name}'`, at);
+          continue;
+        }
+        // Inside a generic function, a pin may name the function's own (rigid) parameters.
+        const pin = docTerm(term, types, fn?.rigid ?? new Map());
+        if (typeof pin === "string") report("E_INVALID_TYPE", `Type argument ${name}: ${pin}`, at);
+        else if (tv.bound && !types.isSubtype(pin, tv.bound)) {
+          report(
+            "E_TYPE_MISMATCH",
+            `${name} = ${formatType(pin)} is not a ${formatType(tv.bound)}`,
+            at,
+          );
+        } else tv.pin = pin;
+      }
+      const inst: Instance = { node, manifest: m, variadic: n, vars, graph };
+      instances.set(node.id, inst);
+      if (fn && node.type === "core.entry")
+        bodies.set(graph, { ...bodies.get(graph), entry: inst });
+      if (fn && node.type === "core.return") bodies.set(graph, { ...bodies.get(graph), ret: inst });
     }
-    instances.set(node.id, { node, manifest: m, variadic: n, vars });
   }
 
-  // Edges (§6.1).
-  const execEdges: ExecEdge[] = [];
-  const dataEdges: DataEdge[] = [];
+  // Function shape (§6): one entry and one return; no event nodes (only a call starts a body); a pure function's
+  // body has no exec nodes.
+  for (const { id, graph, fn } of graphs) {
+    if (!fn) continue;
+    const count = (type: string): number => graph.nodes.filter((n) => n.type === type).length;
+    for (const type of ["core.entry", "core.return"]) {
+      if (count(type) !== 1)
+        report("E_FUNCTION_SHAPE", `Function '${id}' needs exactly one ${type}`, { function: id });
+    }
+    for (const node of graph.nodes) {
+      const inst = instances.get(node.id);
+      const at = { function: id, node: node.id };
+      if (inst && isEvent(inst)) {
+        report(
+          "E_FUNCTION_SHAPE",
+          `Event node ${node.id} belongs in the main graph, not in function '${id}'`,
+          at,
+        );
+      } else if (
+        !fn.decl.exec &&
+        (inst?.manifest.mode === "exec" || inst?.manifest.mode === "event")
+      ) {
+        report("E_FUNCTION_SHAPE", `Pure function '${id}' can't contain exec node ${node.id}`, at);
+      }
+    }
+  }
+  for (const inst of instances.values()) {
+    if (inst.node.type !== "core.call") continue;
+    const body = bodies.get(inst.node.ref ?? "");
+    calls.set(
+      inst,
+      [body?.entry, body?.ret].filter((x) => x !== undefined),
+    );
+  }
+
+  // Edges (§6.1), each inside its own graph.
   const usedExecOut = new Map<Instance, Set<string>>();
   const usedDataIn = new Map<Instance, Set<string>>();
-  for (const edge of doc.program.graph.edges) {
-    if (dupEdges.has(edge)) continue;
-    const at = { edge: edge.id };
-    let ends = true;
-    for (const ref of [edge.from, edge.to]) {
-      const owner = graphOf.get(ref.node);
-      if (owner === undefined)
-        report("E_UNKNOWN_REF", `Edge ${edge.id} points at missing node '${ref.node}'`, at);
-      else if (owner !== "main")
-        report("E_CROSS_GRAPH", `Edge ${edge.id} leaves the main graph`, at);
-      ends &&= owner === "main";
-    }
-    const from = instances.get(edge.from.node);
-    const to = instances.get(edge.to.node);
-    if (!ends || !from || !to) {
-      // The source was already reported; still count the target as wired so it gets no follow-on errors.
-      if (ends && to) claim(usedDataIn, to, edge.to.port);
-      continue;
-    }
-    const out = outputPort(from, edge.from.port);
-    const inp = inputPort(to, edge.to.port);
-    if (!out)
-      report("E_UNKNOWN_PORT", `${edge.from.node} has no output '${edge.from.port}'`, {
-        ...at,
-        ...edge.from,
-      });
-    if (!inp)
-      report("E_UNKNOWN_PORT", `${edge.to.node} has no input '${edge.to.port}'`, {
-        ...at,
-        ...edge.to,
-      });
-    if (!out || !inp) continue;
-    if (out.kind !== inp.kind) {
-      report("E_KIND_MISMATCH", `Edge ${edge.id} connects ${out.kind} to ${inp.kind}`, at);
-    } else if (out.kind === "exec") {
-      if (!claim(usedExecOut, from, edge.from.port)) {
-        report("E_EXEC_FANOUT", `${edge.from.node}.${edge.from.port} already has an edge`, at);
-      } else execEdges.push({ edge, from, to });
-    } else if (inp.kind === "data") {
-      if (inp.def.wire === false) {
-        report("E_KIND_MISMATCH", `${edge.to.node}.${edge.to.port} takes only a literal`, at);
-      } else if (!claim(usedDataIn, to, edge.to.port)) {
-        report("E_DATA_FANIN", `${edge.to.node}.${edge.to.port} already has an edge`, at);
-      } else dataEdges.push({ edge, from, out: out.def, to, in: inp.def });
+  for (const {
+    id: graph,
+    graph: { edges },
+  } of graphs) {
+    for (const edge of edges) {
+      if (dupEdges.has(edge)) continue;
+      const at = { edge: edge.id };
+      let ends = true;
+      for (const ref of [edge.from, edge.to]) {
+        const owner = graphOf.get(ref.node);
+        if (owner === undefined)
+          report("E_UNKNOWN_REF", `Edge ${edge.id} points at missing node '${ref.node}'`, at);
+        else if (owner !== graph) report("E_CROSS_GRAPH", `Edge ${edge.id} leaves its graph`, at);
+        ends &&= owner === graph;
+      }
+      const from = instances.get(edge.from.node);
+      const to = instances.get(edge.to.node);
+      if (!ends || !from || !to) {
+        // The source was already reported; still count the target as wired so it gets no follow-on errors.
+        if (ends && to) claim(usedDataIn, to, edge.to.port);
+        continue;
+      }
+      const out = outputPort(from, edge.from.port);
+      const inp = inputPort(to, edge.to.port);
+      if (!out)
+        report("E_UNKNOWN_PORT", `${edge.from.node} has no output '${edge.from.port}'`, {
+          ...at,
+          ...edge.from,
+        });
+      if (!inp)
+        report("E_UNKNOWN_PORT", `${edge.to.node} has no input '${edge.to.port}'`, {
+          ...at,
+          ...edge.to,
+        });
+      if (!out || !inp) continue;
+      if (out.kind !== inp.kind) {
+        report("E_KIND_MISMATCH", `Edge ${edge.id} connects ${out.kind} to ${inp.kind}`, at);
+      } else if (out.kind === "exec") {
+        if (!claim(usedExecOut, from, edge.from.port)) {
+          report("E_EXEC_FANOUT", `${edge.from.node}.${edge.from.port} already has an edge`, at);
+        } else execEdges.push({ edge, from, to });
+      } else if (inp.kind === "data") {
+        if (inp.def.wire === false) {
+          report("E_KIND_MISMATCH", `${edge.to.node}.${edge.to.port} takes only a literal`, at);
+        } else if (!claim(usedDataIn, to, edge.to.port)) {
+          report("E_DATA_FANIN", `${edge.to.node}.${edge.to.port} already has an edge`, at);
+        } else dataEdges.push({ edge, from, out: out.def, to, in: inp.def });
+      }
     }
   }
 
@@ -329,7 +450,7 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     });
   }
 
-  // Inference and checks (§3.4).
+  // Inference and checks (§3.4). Edges never cross graphs, so one solve covers every body independently.
   const constraints: Constraint[] = dataEdges.map((e) => ({
     sub: e.out.type,
     subOf: e.from,
@@ -399,7 +520,7 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
           report("E_LITERAL_INVALID", `${inst.node.id}.${port} ${what}: ${problem}`, here);
       };
       if (Object.hasOwn(literals, port)) check(literals[port]!, "literal");
-      // Ground defaults were checked with the manifest; generic ones only once T is known.
+      // Ground defaults were checked with the manifest or function declaration; generic ones only once T is known.
       else if (def.default !== undefined) {
         if (!isGround(def.type) && isGround(type)) check(def.default, "default");
       } else if (required)
@@ -407,20 +528,7 @@ export function validate(doc: DocumentV1, manifest: LanguageManifest): Analysis 
     }
   }
 
-  // Capabilities: forward along exec edges from event nodes, backward along data edges to the nodes they read.
-  const next = new Map<Instance, Instance[]>();
-  for (const e of execEdges) next.set(e.from, [...(next.get(e.from) ?? []), e.to]);
-  for (const e of dataEdges) next.set(e.to, [...(next.get(e.to) ?? []), e.from]);
-  const stack = [...instances.values()].filter((inst) => inst.manifest.mode === "event");
-  const reached = new Set(stack);
-  while (stack.length) {
-    for (const n of next.get(stack.pop()!) ?? []) {
-      if (reached.has(n)) continue;
-      reached.add(n);
-      stack.push(n);
-    }
-  }
-  for (const inst of reached) for (const id of inst.manifest.requires ?? []) capabilities.add(id);
-
-  return analysis;
+  const events = [...instances.values()].filter(isEvent);
+  for (const id of reachableCapabilities(events, analyzed)) capabilities.add(id);
+  return analyzed;
 }
