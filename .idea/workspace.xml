@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="feat: Add core functions and variables with migration and hashing" />
+    <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="feat: Add Vue workflow editor and playground app" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -118,7 +118,7 @@
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "bun",
     "settings.editor.selected.configurable": "editor.preferences.inline.completion",
-    "ts.external.directory.path": "/Users/administrator/Documents/WebStorm Projects/workflows/node_modules/@typescript/typescript-darwin-arm64/lib"
+    "ts.external.directory.path": "/Users/administrator/Documents/WebStorm Projects/workflows/node_modules/typescript/lib"
   }
 }]]></component>
   <component name="SharedIndexes">
@@ -135,7 +135,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1793496424936</updated>
-      <workItem from="1793496425937" duration="4768000" />
+      <workItem from="1793496425937" duration="5405000" />
     </task>
     <task id="LOCAL-00001" summary="chore: Add core type system and expose it via `./core` export">
       <option name="closed" value="true" />
@@ -193,7 +193,23 @@
       <option name="project" value="LOCAL" />
       <updated>1793513776519</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="feat: Add Vue canvas editor and expose node ports with fire trace events">
+      <option name="closed" value="true" />
+      <created>1793544056652</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1793544056652</updated>
+    </task>
+    <task id="LOCAL-00009" summary="feat: Add Vue workflow editor and playground app">
+      <option name="closed" value="true" />
+      <created>1793544076168</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1793544076168</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -207,6 +223,8 @@
     <MESSAGE value="test: Add `validate` coverage and scale inference rounds to chain length" />
     <MESSAGE value="feat: Validate function bodies with `core` entry, return and call nodes" />
     <MESSAGE value="feat: Add core functions and variables with migration and hashing" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: Add core functions and variables with migration and hashing" />
+    <MESSAGE value="feat: Add Vue canvas editor and expose node ports with fire trace events" />
+    <MESSAGE value="feat: Add Vue workflow editor and playground app" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: Add Vue workflow editor and playground app" />
   </component>
 </project>
