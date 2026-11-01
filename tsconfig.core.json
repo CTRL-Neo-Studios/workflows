@@ -1,0 +1,10 @@
+{
+  // TypeScript 7 over core only, since vue-tsc can't run on 7.0 yet. No DOM lib, so core stays free of browser
+  // APIs. isolatedDeclarations is off for SFCs, whose generated code it rejects.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "isolatedDeclarations": true
+  },
+  "include": ["src/core"]
+}

@@ -1,0 +1,585 @@
+@import "@vue-flow/core/dist/style.css";
+
+/*
+ * Every color is a --wf-* variable; override them on any ancestor. Surfaces follow `color-scheme`
+ * (light-dark()), the named and type colors are mid-lightness so they read on both.
+ */
+:root {
+  --wf-red: oklch(0.66 0.21 25);
+  --wf-orange: oklch(0.72 0.18 50);
+  --wf-amber: oklch(0.79 0.16 80);
+  --wf-yellow: oklch(0.85 0.16 100);
+  --wf-lime: oklch(0.8 0.19 130);
+  --wf-green: oklch(0.72 0.18 150);
+  --wf-emerald: oklch(0.7 0.15 165);
+  --wf-teal: oklch(0.7 0.12 185);
+  --wf-cyan: oklch(0.75 0.13 210);
+  --wf-sky: oklch(0.72 0.14 235);
+  --wf-blue: oklch(0.62 0.19 260);
+  --wf-indigo: oklch(0.58 0.2 275);
+  --wf-violet: oklch(0.6 0.22 295);
+  --wf-purple: oklch(0.62 0.23 305);
+  --wf-fuchsia: oklch(0.67 0.25 325);
+  --wf-pink: oklch(0.7 0.2 350);
+  --wf-rose: oklch(0.66 0.21 10);
+
+  --wf-mode-event: var(--wf-rose);
+  --wf-mode-exec: var(--wf-blue);
+  --wf-mode-pure: var(--wf-emerald);
+  --wf-mode-once: var(--wf-amber);
+
+  --wf-type-string: var(--wf-pink);
+  --wf-type-number: var(--wf-lime);
+  --wf-type-boolean: var(--wf-red);
+  --wf-type-any: oklch(0.7 0.02 260);
+  --wf-type-generic: oklch(0.62 0.03 260);
+  --wf-exec: light-dark(oklch(0.35 0.02 260), oklch(0.95 0.01 260));
+
+  --wf-error: var(--wf-red);
+  --wf-ok: var(--wf-green);
+
+  --wf-bg: light-dark(oklch(0.97 0.006 260), oklch(0.19 0.012 265));
+  --wf-dots: light-dark(oklch(0.84 0.01 260), oklch(0.32 0.015 265));
+  --wf-surface: light-dark(oklch(1 0 0), oklch(0.245 0.014 265));
+  --wf-surface-2: light-dark(oklch(0.955 0.008 260), oklch(0.29 0.016 265));
+  --wf-border: light-dark(oklch(0.88 0.01 260), oklch(0.36 0.018 265));
+  --wf-fg: light-dark(oklch(0.25 0.02 265), oklch(0.93 0.01 265));
+  --wf-muted: light-dark(oklch(0.52 0.02 265), oklch(0.68 0.02 265));
+  --wf-radius: 10px;
+  --wf-pad: 10px;
+  --wf-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wf-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.wf-canvas,
+.wf-palette,
+.wf-diagnostics {
+  color-scheme: light dark;
+  color: var(--wf-fg);
+  font: 12px/1.35 var(--wf-font);
+}
+
+/* Canvas */
+
+.wf-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: var(--wf-bg);
+  background-image: radial-gradient(var(--wf-dots) 1.2px, transparent 1.4px);
+}
+
+.wf-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--wf-error);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 6px 20px color-mix(in oklch, var(--wf-error) 40%, transparent);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.wf-controls {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+
+.wf-controls button,
+.wf-variadic button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--wf-border);
+  border-radius: 7px;
+  background: var(--wf-surface);
+  color: var(--wf-fg);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.wf-controls button:hover,
+.wf-variadic button:hover:not(:disabled) {
+  border-color: var(--wf-blue);
+  color: var(--wf-blue);
+}
+
+/* Nodes */
+
+.vue-flow__node-workflow {
+  border-radius: var(--wf-radius);
+}
+
+.wf-node {
+  --wf-accent: var(--wf-mode-exec);
+  min-width: 170px;
+  border: 1px solid var(--wf-border);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.12),
+    0 8px 24px -8px oklch(0 0 0 / 0.25);
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+
+.wf-node.wf-selected {
+  border-color: var(--wf-accent);
+  box-shadow:
+    0 0 0 3px color-mix(in oklch, var(--wf-accent) 35%, transparent),
+    0 8px 24px -8px oklch(0 0 0 / 0.3);
+}
+
+.wf-node.wf-invalid {
+  border-color: var(--wf-error);
+}
+
+.wf-node.wf-ran {
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--wf-accent) 55%, transparent),
+    0 0 22px color-mix(in oklch, var(--wf-accent) 45%, transparent);
+}
+
+.wf-node.wf-faulted {
+  border-color: var(--wf-error);
+  box-shadow: 0 0 24px color-mix(in oklch, var(--wf-error) 55%, transparent);
+}
+
+.wf-node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px var(--wf-pad);
+  border-radius: calc(var(--wf-radius) - 1px) calc(var(--wf-radius) - 1px) 0 0;
+  background: linear-gradient(
+    100deg,
+    var(--wf-accent),
+    color-mix(in oklch, var(--wf-accent) 72%, black)
+  );
+  color: white;
+  text-shadow: 0 1px 1px oklch(0 0 0 / 0.25);
+}
+
+.wf-node-title {
+  flex: 1;
+  font-weight: 650;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.wf-node-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.wf-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
+  text-shadow: none;
+}
+
+.wf-node-header .wf-badge {
+  background: oklch(1 0 0 / 0.22);
+  color: white;
+}
+
+.wf-badge-cap {
+  background: color-mix(in oklch, var(--wf-violet) 18%, transparent);
+  color: var(--wf-violet);
+}
+
+.wf-badge-mutates {
+  background: color-mix(in oklch, var(--wf-orange) 20%, transparent);
+  color: var(--wf-orange);
+}
+
+.wf-node-header .wf-badge-error {
+  background: var(--wf-error);
+  box-shadow: 0 0 0 1.5px white;
+}
+
+.wf-node-body {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 6px var(--wf-pad) 8px;
+}
+
+.wf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wf-col-out {
+  align-items: flex-end;
+}
+
+.wf-port {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.wf-port-label {
+  color: var(--wf-muted);
+  white-space: nowrap;
+}
+
+.wf-port-data .wf-port-label {
+  color: color-mix(in oklch, var(--wf-port) 65%, var(--wf-fg));
+}
+
+.wf-port-invalid .wf-port-label {
+  color: var(--wf-error);
+  text-decoration: underline wavy var(--wf-error);
+  text-underline-offset: 3px;
+}
+
+.wf-required {
+  color: var(--wf-error);
+  margin-left: 1px;
+}
+
+.wf-node-broken,
+.wf-node-fault {
+  /* Wraps to the node's width instead of widening it. */
+  width: 0;
+  min-width: calc(100% - 2 * var(--wf-pad));
+  padding: 6px var(--wf-pad);
+  color: var(--wf-error);
+}
+
+.wf-node-fault {
+  border-top: 1px dashed color-mix(in oklch, var(--wf-error) 50%, transparent);
+  font-family: var(--wf-mono);
+  font-size: 11px;
+}
+
+.wf-node-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px var(--wf-pad);
+  border-top: 1px solid var(--wf-border);
+  background: var(--wf-surface-2);
+  border-radius: 0 0 calc(var(--wf-radius) - 1px) calc(var(--wf-radius) - 1px);
+}
+
+.wf-typearg {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--wf-mono);
+  color: var(--wf-violet);
+  font-weight: 600;
+}
+
+.wf-variadic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wf-muted);
+}
+
+.wf-variadic button {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.wf-variadic button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wf-value {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--wf-port) 22%, transparent);
+  color: var(--wf-fg);
+  font-family: var(--wf-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* Handles: circle = one value, square = List, diamond = Dictionary, arrow = exec. Hollow until wired. */
+
+.wf-col-in .vue-flow__handle {
+  left: calc(-1 * var(--wf-pad) - 1px);
+}
+
+.wf-col-out .vue-flow__handle {
+  right: calc(-1 * var(--wf-pad) - 1px);
+  left: auto;
+}
+
+.wf-handle.vue-flow__handle {
+  width: 12px;
+  height: 12px;
+  border: 2.5px solid var(--wf-port, var(--wf-exec));
+  background: var(--wf-surface);
+  border-radius: 50%;
+}
+
+.wf-handle.wf-wired,
+.wf-handle.vue-flow__handle.connecting,
+.wf-handle.vue-flow__handle:hover {
+  background: var(--wf-port, var(--wf-exec));
+}
+
+.wf-handle.wf-shape-list {
+  border-radius: 3px;
+}
+
+.wf-handle.wf-shape-dict {
+  border-radius: 2px;
+  rotate: 45deg;
+}
+
+.wf-handle-exec.vue-flow__handle {
+  width: 13px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--wf-exec);
+  clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%);
+}
+
+/* Hollow arrow: a smaller arrow in the surface color on top. */
+.wf-handle-exec.vue-flow__handle:not(.wf-wired, :hover, .connecting)::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px 4px 2.5px 2.5px;
+  background: var(--wf-surface);
+  clip-path: polygon(0 0, 50% 0, 100% 50%, 50% 100%, 0 100%);
+}
+
+.vue-flow__handle.vue-flow__handle-valid {
+  outline: 3px solid color-mix(in oklch, var(--wf-ok) 60%, transparent);
+}
+
+/* Edges */
+
+.wf-edge-data .vue-flow__edge-path {
+  stroke: var(--wf-port);
+  stroke-width: 2.25;
+}
+
+.wf-edge-exec .vue-flow__edge-path {
+  stroke: var(--wf-exec);
+  stroke-width: 3;
+}
+
+.wf-edge-converted .vue-flow__edge-path {
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+
+.wf-edge-invalid .vue-flow__edge-path {
+  stroke: var(--wf-error);
+  stroke-dasharray: 7 5;
+}
+
+.wf-edge-taken .vue-flow__edge-path {
+  filter: drop-shadow(0 0 4px var(--wf-port, var(--wf-amber)));
+}
+
+.wf-edge-exec.wf-edge-taken .vue-flow__edge-path {
+  stroke: var(--wf-amber);
+}
+
+.vue-flow__edge.selected .vue-flow__edge-path {
+  stroke-width: 4;
+}
+
+.vue-flow__connection-path {
+  stroke: var(--wf-muted);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+}
+
+/* Widgets */
+
+.wf-port-widget {
+  display: flex;
+}
+
+.wf-input {
+  width: 116px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--wf-border);
+  border-radius: 6px;
+  background: var(--wf-surface-2);
+  color: var(--wf-fg);
+  font: inherit;
+}
+
+.wf-input:focus {
+  outline: 2px solid color-mix(in oklch, var(--wf-port, var(--wf-blue)) 60%, transparent);
+  border-color: var(--wf-port, var(--wf-blue));
+}
+
+.wf-input-json {
+  font-family: var(--wf-mono);
+}
+
+.wf-input-bad {
+  border-color: var(--wf-error);
+}
+
+.wf-check {
+  accent-color: var(--wf-port, var(--wf-blue));
+}
+
+.wf-typearg select {
+  height: 22px;
+  border: 1px solid var(--wf-border);
+  border-radius: 6px;
+  background: var(--wf-surface);
+  color: var(--wf-fg);
+  font: inherit;
+}
+
+/* Palette */
+
+.wf-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.wf-palette-search {
+  width: 100%;
+  height: 30px;
+}
+
+.wf-palette-group h3 {
+  margin: 4px 2px 4px;
+  color: var(--wf-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wf-palette-item {
+  --wf-accent: var(--wf-mode-exec);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--wf-border);
+  border-left: 4px solid var(--wf-accent);
+  border-radius: 7px;
+  background: var(--wf-surface);
+  color: var(--wf-fg);
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+}
+
+.wf-palette-item:hover {
+  background: color-mix(in oklch, var(--wf-accent) 14%, var(--wf-surface));
+  border-color: color-mix(in oklch, var(--wf-accent) 60%, var(--wf-border));
+}
+
+.wf-palette-label {
+  flex: 1;
+  font-weight: 600;
+}
+
+.wf-palette-mode {
+  color: var(--wf-accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Diagnostics */
+
+.wf-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-diagnostics ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wf-diagnostics li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--wf-error);
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--wf-error) 10%, var(--wf-surface));
+}
+
+.wf-diagnostics li.wf-diag-warning {
+  border-left-color: var(--wf-amber);
+  background: color-mix(in oklch, var(--wf-amber) 10%, var(--wf-surface));
+}
+
+.wf-diagnostics li[role="button"] {
+  cursor: pointer;
+}
+
+.wf-diagnostics li[role="button"]:hover {
+  background: color-mix(in oklch, var(--wf-error) 18%, var(--wf-surface));
+}
+
+.wf-diagnostics code {
+  color: var(--wf-error);
+  font: 600 10.5px var(--wf-mono);
+}
+
+.wf-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.wf-ok {
+  margin: 0;
+  color: var(--wf-ok);
+  font-weight: 600;
+}
+
+.wf-muted {
+  color: var(--wf-muted);
+}
