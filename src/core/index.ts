@@ -1,3 +1,4 @@
+export type { Diagnostic, DiagnosticCode, DiagnosticLocation } from "./diagnostics";
 export type {
   DocumentV1,
   EdgeInstance,
@@ -49,3 +50,4 @@ export {
   type TypeTerm,
   type Variance,
 } from "./types";
+export { validate, type Analysis } from "./validate";

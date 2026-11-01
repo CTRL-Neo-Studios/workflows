@@ -1,4 +1,5 @@
-// The language behind the spec's §10 worked example. Shared by tests; not part of the package.
+// The language and document behind the spec's §10 worked example. Shared by tests; not part of the package.
+import type { DocumentV1, EdgeInstance } from "../document";
 import { defineLanguage, type Language } from "../language";
 import { t, tvar } from "../types";
 
@@ -112,3 +113,50 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects>({
     },
   })
   .build();
+
+function edge(id: string, from: string, to: string): EdgeInstance {
+  const [fn = "", fp = ""] = from.split(".");
+  const [tn = "", tp = ""] = to.split(".");
+  return { id, from: { node: fn, port: fp }, to: { node: tn, port: tp } };
+}
+
+/** "Archive every file tagged `draft`". Returns a fresh copy, so tests may mutate it. */
+export function archiveDrafts(): DocumentV1 {
+  return {
+    format: 1,
+    language: { id: "vertex", version: 1 },
+    program: {
+      graph: {
+        nodes: [
+          { id: "n1", type: "vertex.onManual", version: 1 },
+          { id: "n2", type: "vertex.queryByTag", version: 1, literals: { tag: "draft" } },
+          { id: "n3", type: "std.forEach", version: 1 },
+          { id: "n4", type: "vertex.fileName", version: 1 },
+          { id: "n5", type: "vertex.rename", version: 1 },
+          { id: "n6", type: "std.concat", version: 1, variadic: 2, literals: { arg1: "_archive" } },
+          {
+            id: "n7",
+            type: "vertex.setProperty",
+            version: 1,
+            literals: { key: "status", value: "archived" },
+            typeArgs: { T: t("string") },
+          },
+        ],
+        edges: [
+          edge("e1", "n1.then", "n3.exec"),
+          edge("e2", "n2.files", "n3.list"),
+          edge("e3", "n3.body", "n5.exec"),
+          edge("e4", "n3.item", "n4.file"),
+          edge("e5", "n4.name", "n6.arg0"),
+          edge("e6", "n6.out", "n5.newName"),
+          edge("e7", "n3.item", "n5.file"),
+          edge("e8", "n5.then", "n7.exec"),
+          edge("e9", "n5.file", "n7.file"),
+        ],
+      },
+      variables: [],
+      functions: [],
+    },
+    view: { positions: {}, groups: [] },
+  };
+}
