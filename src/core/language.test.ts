@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest";
 import { vertex } from "./fixtures/section10";
 import { std } from "./std";
 import { defineLanguage } from "./language";
-import { checkManifest, type LanguageManifest, type NodeManifest } from "./manifest";
+import {
+  checkManifest,
+  labelText,
+  parseLabel,
+  type LanguageManifest,
+  type NodeManifest,
+} from "./manifest";
 import { t, tvar } from "./types";
 
 const str = t("string");
@@ -245,6 +251,12 @@ describe("checkManifest", () => {
       { variadic: { kind: "input", prefix: "arg", type: str, min: 3, max: 1 } },
       "min exceeds max",
     ],
+    ["unknown category", { category: "x.misc" }, "unknown category 'x.misc'"],
+    [
+      "label placeholder that isn't an input",
+      { label: "Rename {file}", inputs: { name: { type: str } } },
+      "label names '{file}', which isn't an input",
+    ],
   ])("%s", (_, node, message) => {
     expect(() => checkManifest(manifestWith(node))).toThrow(message);
   });
@@ -280,6 +292,17 @@ describe("checkManifest", () => {
       "Duplicate capability 'a'",
     ],
     [
+      "duplicate category",
+      {
+        categories: [
+          { id: "x.a", label: "A" },
+          { id: "x.a", label: "B" },
+        ],
+      },
+      "Duplicate category 'x.a'",
+    ],
+    ["reserved category id", { categories: [{ id: "core.x", label: "X" }] }, "invalid id"],
+    [
       "non-ground conversion",
       { conversions: [{ from: T, to: str }] },
       "Conversion T→string: undeclared type parameter 'T'",
@@ -297,4 +320,18 @@ describe("checkManifest", () => {
   ])("%s", (_, extra, message) => {
     expect(() => checkManifest(manifestWith({}, extra))).toThrow(message);
   });
+});
+
+test("sentence labels split at their inputs; as text, inputs read by their labels", () => {
+  expect(parseLabel("Rename {file} to {newName}")).toEqual([
+    { text: "Rename " },
+    { input: "file" },
+    { text: " to " },
+    { input: "newName" },
+  ]);
+  expect(parseLabel("{a}{b}")).toEqual([{ input: "a" }, { input: "b" }]);
+  const inputs = { file: { type: str, label: "the file" }, newName: { type: str } };
+  expect(labelText({ label: "Rename {file} to {newName}", inputs })).toBe(
+    "Rename the file to newName",
+  );
 });

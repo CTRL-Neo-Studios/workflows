@@ -103,7 +103,7 @@ interface CompiledNode<E> {
   mode: Instance["manifest"]["mode"];
   /** core.* nodes are run by the runtime itself. */
   core?: CoreKind;
-  /** core.call → function id; core.get / core.set → variable id. */
+  /** core.call → function id; core.get / core.set → variable id; core.return (exec) → the exit it leaves through. */
   ref: string;
   exec?: ExecRun<E>;
   pure?: PureRun<E>;
@@ -127,6 +127,7 @@ interface CompiledFunction<E> {
   name: string;
   exec: boolean;
   entry: CompiledNode<E>;
+  /** A pure function's only core.return; an exec function leaves through whichever return runs. */
   ret: CompiledNode<E>;
   /** Local ids, with their decoded defaults where declared. */
   locals: ReadonlyMap<string, { value: unknown } | undefined>;
@@ -190,7 +191,10 @@ export function compile<E extends object>(
       id,
       mode: m.mode,
       ...(core && { core }),
-      ref: inst.node.ref ?? "",
+      ref:
+        inst.node.ref ??
+        (core === "return" ? decls.functions.get(inst.graph)?.exits[0] : undefined) ??
+        "",
       ...runs,
       next: new Map(),
       execOuts: new Set([...(m.exec?.out ?? []), ...variadicOuts]),
@@ -218,11 +222,12 @@ export function compile<E extends object>(
     nodes.get(e.to)!.wires.set(e.edge.to.port, wire);
   }
 
-  // Validation guarantees every surviving function has exactly one entry and one return.
+  // Validation guarantees every surviving function has exactly one entry and at least one return.
   const functions = new Map<string, CompiledFunction<E>>();
   for (const [id, fn] of decls.functions) {
     const body = bodies.get(id);
-    if (!body?.entry || !body.ret) continue;
+    const ret = body?.rets[0];
+    if (!body?.entry || !ret) continue;
     const locals = new Map<string, { value: unknown } | undefined>();
     for (const l of fn.locals.values())
       locals.set(l.id, l.default === undefined ? undefined : { value: decode(l.default, l.type) });
@@ -230,7 +235,7 @@ export function compile<E extends object>(
       name: fn.decl.name,
       exec: fn.decl.exec,
       entry: nodes.get(body.entry)!,
-      ret: nodes.get(body.ret)!,
+      ret: nodes.get(ret)!,
       locals,
     });
   }
@@ -282,7 +287,8 @@ interface Frame {
   /** Set values of this call's locals. */
   locals: Map<string, unknown>;
   localIds: ReadonlySet<string>;
-  result?: Record<string, unknown>;
+  /** Set by the core.return that ran: its values and the exit the call continues on. */
+  result?: { exit: string; values: Record<string, unknown> };
   /** Thrown at every later step of this call once core.return ran. */
   unwind: Returned;
   returned: boolean;
@@ -507,7 +513,7 @@ class Run<E> {
         return "then";
       }
       case "return": {
-        frame.result = await this.#inputs(node, scope, cache);
+        frame.result = { exit: node.ref, values: await this.#inputs(node, scope, cache) };
         frame.returned = true;
         this.#emit({ t: "exit", node: node.id, depth: frame.depth });
         throw frame.unwind;
@@ -519,7 +525,8 @@ class Run<E> {
         } catch (error) {
           if (error !== root.frame.unwind) throw error;
         }
-        if (!root.frame.result) {
+        const { result } = root.frame;
+        if (!result) {
           throw this.#fault(
             "E_NO_RETURN",
             `${fn.name} ended without reaching core.return`,
@@ -527,10 +534,10 @@ class Run<E> {
           );
         }
         for (const port of node.outputs) {
-          scope.set(node, port, root.frame.result[port]);
-          this.#emit({ t: "value", node: node.id, port, value: root.frame.result[port] });
+          scope.set(node, port, result.values[port]);
+          this.#emit({ t: "value", node: node.id, port, value: result.values[port] });
         }
-        return "then";
+        return result.exit;
       }
       default:
         throw new Error(`${node.id}: core.${String(node.core)} can't be activated`);

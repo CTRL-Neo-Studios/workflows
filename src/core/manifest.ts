@@ -43,10 +43,46 @@ export interface NodeManifest {
   variadic?: VariadicDef;
   /** Capability ids (§7). */
   requires?: string[];
+  /**
+   * Shown on the node. May embed inputs as `{name}`, which editors render inline, Scratch-style:
+   * `'Rename {file} to {newName}'`.
+   */
   label: string;
+  /** A `CategoryDef` id. Uncategorized nodes are grouped by namespace. */
   category?: string;
   description?: string;
   icon?: string;
+  /** Overrides the category's color for this node: a palette name (`sky`, `rose`, …) or any CSS color. */
+  color?: string;
+}
+
+/** A group of nodes in editors: the palette's sections, and the tint of their nodes' headers. */
+export interface CategoryDef {
+  /** Namespaced like nodes: `std.control`, `vertex.files`. `core.` is reserved. */
+  id: string;
+  label: string;
+  /** A palette name (`sky`, `rose`, …) or any CSS color. */
+  color?: string;
+  icon?: string;
+  /** Sorts categories, lowest first; ties keep declaration order (included languages first). Default 0. */
+  order?: number;
+}
+
+/** A label split at its `{input}` placeholders. */
+export type LabelPart = { text: string } | { input: string };
+
+export function parseLabel(label: string): LabelPart[] {
+  return label
+    .split(/(\{\w+\})/)
+    .filter(Boolean)
+    .map((s) => (/^\{\w+\}$/.test(s) ? { input: s.slice(1, -1) } : { text: s }));
+}
+
+/** The label as plain text, placeholders replaced by their inputs' labels (else names). */
+export function labelText(node: Pick<NodeManifest, "label" | "inputs">): string {
+  return parseLabel(node.label)
+    .map((p) => ("text" in p ? p.text : (node.inputs?.[p.input]?.label ?? p.input)))
+    .join("");
 }
 
 /** Both sides ground, e.g. number → string. */
@@ -68,6 +104,8 @@ export interface LanguageManifest {
   types: TypeDef[];
   conversions: ConversionDef[];
   capabilities: CapabilityDef[];
+  /** Absent in manifests from before categories existed. */
+  categories?: CategoryDef[];
   /** Already flattened: included languages are merged in. */
   nodes: NodeManifest[];
 }
@@ -78,6 +116,7 @@ export interface CheckedManifest {
   types: TypeTable;
   nodes: ReadonlyMap<string, NodeManifest>;
   capabilities: ReadonlyMap<string, CapabilityDef>;
+  categories: ReadonlyMap<string, CategoryDef>;
   /** Keys from `conversionKey`. */
   conversions: ReadonlySet<string>;
 }
@@ -113,12 +152,19 @@ function checkNode(
   node: NodeManifest,
   types: TypeTable,
   capabilities: ReadonlyMap<string, CapabilityDef>,
+  categories: ReadonlyMap<string, CategoryDef>,
 ): string | undefined {
   if (node.type.startsWith("core.")) return "the 'core.' namespace is reserved";
   if (!Number.isInteger(node.version) || node.version < 1)
     return "version must be a positive integer";
   if (!MODES.includes(node.mode)) return `unknown mode '${String(node.mode)}'`;
   if (typeof node.label !== "string" || !node.label) return "label is required";
+  for (const part of parseLabel(node.label)) {
+    if ("input" in part && !node.inputs?.[part.input])
+      return `label names '{${part.input}}', which isn't an input`;
+  }
+  if (node.category !== undefined && !categories.has(node.category))
+    return `unknown category '${node.category}'`;
   const dataOnly = node.mode === "pure" || node.mode === "once";
   if (dataOnly && node.exec) return `${node.mode} nodes have no exec ports`;
   if (node.mode === "event" && node.exec?.in) return "event nodes have no exec inputs";
@@ -214,6 +260,18 @@ export function checkManifest(manifest: LanguageManifest): CheckedManifest {
     capabilities.set(capability.id, capability);
   }
 
+  const categories = new Map<string, CategoryDef>();
+  for (const category of manifest.categories ?? []) {
+    const at = `Category '${category.id}'`;
+    if (!category.id || category.id.startsWith("core.")) throw new Error(`${at}: invalid id`);
+    if (categories.has(category.id)) throw new Error(`Duplicate category '${category.id}'`);
+    if (typeof category.label !== "string" || !category.label)
+      throw new Error(`${at}: label is required`);
+    if (category.order !== undefined && !Number.isFinite(category.order))
+      throw new Error(`${at}: order must be a finite number`);
+    categories.set(category.id, category);
+  }
+
   const conversions = new Set<string>();
   for (const { from, to } of manifest.conversions) {
     const key = conversionKey(from, to);
@@ -226,10 +284,10 @@ export function checkManifest(manifest: LanguageManifest): CheckedManifest {
   const nodes = new Map<string, NodeManifest>();
   for (const node of manifest.nodes) {
     if (nodes.has(node.type)) throw new Error(`Duplicate node type '${node.type}'`);
-    const error = checkNode(node, types, capabilities);
+    const error = checkNode(node, types, capabilities, categories);
     if (error) throw new Error(`Node '${node.type}': ${error}`);
     nodes.set(node.type, node);
   }
 
-  return { manifest, types, nodes, capabilities, conversions };
+  return { manifest, types, nodes, capabilities, categories, conversions };
 }

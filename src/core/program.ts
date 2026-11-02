@@ -26,6 +26,8 @@ export interface FunctionInfo {
   bodyOutputs: Record<string, DataPortDef>;
   /** Local variables, types rigid. */
   locals: Map<string, VariableDecl>;
+  /** An exec function's exec outputs, in order; none for a pure function. */
+  exits: string[];
 }
 
 export interface Declarations {
@@ -170,6 +172,20 @@ export function declarations(doc: DocumentV1, types: TypeTable, report: Report):
     const [outputs, bodyOutputs] = ports(decl.outputs, "output");
     const locals = new Map<string, VariableDecl>();
     for (const v of decl.locals ?? []) variable(v, rigid, locals, { ...at, variable: v.id });
+    const exits = decl.exits ?? (decl.exec ? ["then"] : []);
+    // Exec and data outputs share the call's port names.
+    const clash = exits.find((x) => Object.hasOwn(decl.outputs, x));
+    const badExits = [
+      !decl.exec && decl.exits !== undefined && "a pure function has no exits",
+      decl.exec && !exits.length && "an exec function needs at least one exit",
+      exits.includes("") && "an exit needs a name",
+      new Set(exits).size < exits.length && "exit names must be unique",
+      clash !== undefined && `exit '${clash}' is also an output`,
+    ].find((x) => typeof x === "string");
+    if (badExits) {
+      report("E_FUNCTION_SHAPE", `Function '${decl.id}': ${badExits}`, at);
+      ok = false;
+    }
     if (!ok) continue;
     functions.set(decl.id, {
       decl,
@@ -180,6 +196,7 @@ export function declarations(doc: DocumentV1, types: TypeTable, report: Report):
       bodyInputs,
       bodyOutputs,
       locals,
+      exits,
     });
   }
   return { variables, functions };
@@ -225,6 +242,12 @@ export function coreManifest(
           ? { ...base, mode: "event", exec: { out: ["then"] }, outputs }
           : { ...base, mode: "pure", outputs };
       }
+      // `ref` names the exit the return leaves through; omitted, the first.
+      if (node.ref !== undefined && !fn.exits.includes(node.ref))
+        return {
+          code: "E_UNKNOWN_REF",
+          message: `core.return names unknown exit '${node.ref}'`,
+        };
       const inputs = asRequired(fn.bodyOutputs);
       return exec
         ? { ...base, mode: "exec", exec: { out: [] }, inputs }
@@ -245,7 +268,7 @@ export function coreManifest(
         outputs: asOutputs(g.outputs),
       };
       return g.decl.exec
-        ? { ...shape, mode: "exec", exec: { out: ["then"] } }
+        ? { ...shape, mode: "exec", exec: { out: g.exits } }
         : { ...shape, mode: "pure" };
     }
     case "core.get":

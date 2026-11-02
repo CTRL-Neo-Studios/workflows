@@ -30,18 +30,28 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects, Ver
   .type({ id: "vertex.File", label: "File", color: "sky" })
   .capability({ id: "index", mutates: false, label: "Read the workspace index" })
   .capability({ id: "fs", mutates: true, label: "Modify files" })
+  .category({
+    id: "vertex.events",
+    label: "Events",
+    color: "yellow",
+    icon: "i-lucide-zap",
+    order: -1,
+  })
+  .category({ id: "vertex.files", label: "Files", color: "sky", icon: "i-lucide-files" })
   .node({
     type: "vertex.onManual",
     version: 1,
     mode: "event",
     label: "On Run",
+    category: "vertex.events",
     exec: { out: ["then"] },
   })
   .node({
     type: "vertex.queryByTag",
     version: 1,
     mode: "once",
-    label: "Files Tagged",
+    label: "Files tagged {tag}",
+    category: "vertex.files",
     inputs: { tag: { type: str, wire: false, required: true } },
     outputs: { files: { type: t("List", File) } },
     requires: ["index"],
@@ -51,7 +61,8 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects, Ver
     type: "vertex.fileName",
     version: 1,
     mode: "pure",
-    label: "File Name",
+    label: "Name of {file}",
+    category: "vertex.files",
     inputs: { file: { type: File, required: true } },
     outputs: { name: { type: str } },
     run: ({ inputs }) => ({ name: inputs.file.replace(/^.*\//, "").replace(/\.[^.]*$/, "") }),
@@ -60,7 +71,8 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects, Ver
     type: "vertex.rename",
     version: 1,
     mode: "exec",
-    label: "Rename",
+    label: "Rename {file} to {newName}",
+    category: "vertex.files",
     exec: { out: ["then"] },
     inputs: { file: { type: File, required: true }, newName: { type: str, required: true } },
     outputs: { file: { type: File } },
@@ -75,7 +87,8 @@ export const vertex: Language<VertexEffects> = defineLanguage<VertexEffects, Ver
     type: "vertex.setProperty",
     version: 1,
     mode: "exec",
-    label: "Set Property",
+    label: "Set {key} of {file} to {value}",
+    category: "vertex.files",
     typeParams: [{ name: "T" }],
     exec: { out: ["then"] },
     inputs: {

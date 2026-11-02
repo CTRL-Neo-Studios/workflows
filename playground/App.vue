@@ -9,12 +9,7 @@ import { computed, reactive, ref } from "vue";
 import { CompileError, type DocumentV1, type RunResult } from "../src/core";
 import { archiveDrafts, vertex, type VertexEffects } from "../src/core/fixtures/section10";
 import { buildDocument, formatTrace, record, run } from "../src/core/testing";
-import {
-  useWorkflowEditor,
-  WorkflowCanvas,
-  WorkflowDiagnostics,
-  WorkflowPalette,
-} from "../src/vue";
+import { useWorkflowEditor, WorkflowWorkbench } from "../src/vue";
 
 // The §10 language against an in-memory vault.
 interface VaultFile {
@@ -109,10 +104,8 @@ const mode = useColorMode();
 
 <template>
   <UApp>
-    <div
-      class="grid h-dvh grid-cols-[15rem_1fr_22rem] grid-rows-[auto_1fr] bg-default text-default"
-    >
-      <header class="col-span-3 flex items-center gap-2 border-b border-default px-4 py-2">
+    <div class="flex h-dvh flex-col bg-default text-default">
+      <header class="flex items-center gap-2 border-b border-default px-4 py-2">
         <span class="me-3 text-sm font-semibold text-highlighted">
           Workflows <span class="font-normal text-muted">playground</span>
         </span>
@@ -150,110 +143,105 @@ const mode = useColorMode();
         />
       </header>
 
-      <aside class="overflow-auto border-e border-default">
-        <WorkflowPalette :editor="editor" />
-      </aside>
-
-      <main class="min-w-0">
-        <WorkflowCanvas :key="canvasKey" :editor="editor" />
-      </main>
-
-      <aside class="flex flex-col gap-5 overflow-auto border-s border-default p-4">
-        <section>
-          <h2 class="mb-2 text-xs font-medium text-dimmed">Problems</h2>
-          <WorkflowDiagnostics :editor="editor" />
-        </section>
-
-        <section class="run">
-          <h2 class="mb-2 text-xs font-medium text-dimmed">Run</h2>
-          <UAlert
-            v-if="error"
-            color="error"
-            variant="subtle"
-            icon="i-lucide-circle-x"
-            :title="error"
-          />
-          <p v-else-if="!result" class="text-sm text-muted">Not run yet.</p>
-          <UAlert
-            v-else
-            :color="result.status === 'ok' ? 'success' : 'error'"
-            variant="subtle"
-            :icon="result.status === 'ok' ? 'i-lucide-circle-check' : 'i-lucide-octagon-alert'"
-            :title="`${result.status} · ${result.steps} steps`"
-            :description="result.fault ? `${result.fault.code}: ${result.fault.message}` : ''"
-          />
-          <ol v-if="log.length" class="mt-2 list-decimal ps-5 font-mono text-xs text-toned">
-            <li v-for="(line, i) in log" :key="i">{{ line }}</li>
-          </ol>
-        </section>
-
-        <section class="vault">
-          <div class="mb-2 flex items-center justify-between">
-            <h2 class="text-xs font-medium text-dimmed">Vault</h2>
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-rotate-ccw"
-              label="Reset"
-              @click="resetVault"
-            />
-          </div>
-          <div class="divide-y divide-default rounded-md border border-default text-xs">
-            <div
-              v-for="f in vault"
-              :key="f.path + JSON.stringify(f.props)"
-              class="flex flex-col gap-1 p-2"
-            >
-              <code class="text-highlighted">{{ f.path }}</code>
-              <div class="flex flex-wrap items-center gap-1">
-                <UBadge
-                  v-for="t in f.tags"
-                  :key="t"
-                  color="secondary"
+      <main class="min-h-0 flex-1">
+        <WorkflowWorkbench :key="canvasKey" :editor="editor">
+          <template #inspector>
+            <div class="flex flex-col gap-5 border-t border-default p-3">
+              <section class="run">
+                <h2 class="mb-2 text-xs font-medium text-dimmed">Run</h2>
+                <UAlert
+                  v-if="error"
+                  color="error"
                   variant="subtle"
-                  size="sm"
-                  :label="`#${t}`"
+                  icon="i-lucide-circle-x"
+                  :title="error"
                 />
-                <code class="text-muted">{{ JSON.stringify(f.props) }}</code>
-              </div>
-            </div>
-          </div>
-        </section>
+                <p v-else-if="!result" class="text-sm text-muted">Not run yet.</p>
+                <UAlert
+                  v-else
+                  :color="result.status === 'ok' ? 'success' : 'error'"
+                  variant="subtle"
+                  :icon="
+                    result.status === 'ok' ? 'i-lucide-circle-check' : 'i-lucide-octagon-alert'
+                  "
+                  :title="`${result.status} · ${result.steps} steps`"
+                  :description="result.fault ? `${result.fault.code}: ${result.fault.message}` : ''"
+                />
+                <ol v-if="log.length" class="mt-2 list-decimal ps-5 font-mono text-xs text-toned">
+                  <li v-for="(line, i) in log" :key="i">{{ line }}</li>
+                </ol>
+              </section>
 
-        <UCollapsible v-if="traceLines.length">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            block
-            class="justify-start"
-            trailing-icon="i-lucide-chevron-down"
-            :label="`Trace (${traceLines.length})`"
-          />
-          <template #content>
-            <pre class="max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
-              traceLines.join("\n")
-            }}</pre>
+              <section class="vault">
+                <div class="mb-2 flex items-center justify-between">
+                  <h2 class="text-xs font-medium text-dimmed">Vault</h2>
+                  <UButton
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-rotate-ccw"
+                    label="Reset"
+                    @click="resetVault"
+                  />
+                </div>
+                <div class="divide-y divide-default rounded-md border border-default text-xs">
+                  <div
+                    v-for="f in vault"
+                    :key="f.path + JSON.stringify(f.props)"
+                    class="flex flex-col gap-1 p-2"
+                  >
+                    <code class="text-highlighted">{{ f.path }}</code>
+                    <div class="flex flex-wrap items-center gap-1">
+                      <UBadge
+                        v-for="t in f.tags"
+                        :key="t"
+                        color="secondary"
+                        variant="subtle"
+                        size="sm"
+                        :label="`#${t}`"
+                      />
+                      <code class="text-muted">{{ JSON.stringify(f.props) }}</code>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <UCollapsible v-if="traceLines.length">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  block
+                  class="justify-start"
+                  trailing-icon="i-lucide-chevron-down"
+                  :label="`Trace (${traceLines.length})`"
+                />
+                <template #content>
+                  <pre class="max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
+                    traceLines.join("\n")
+                  }}</pre>
+                </template>
+              </UCollapsible>
+              <UCollapsible>
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  block
+                  class="justify-start"
+                  trailing-icon="i-lucide-chevron-down"
+                  label="Document JSON"
+                />
+                <template #content>
+                  <pre class="json max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
+                    json
+                  }}</pre>
+                </template>
+              </UCollapsible>
+            </div>
           </template>
-        </UCollapsible>
-        <UCollapsible>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            block
-            class="justify-start"
-            trailing-icon="i-lucide-chevron-down"
-            label="Document JSON"
-          />
-          <template #content>
-            <pre class="json max-h-80 overflow-auto rounded-md bg-muted p-2 text-xs">{{
-              json
-            }}</pre>
-          </template>
-        </UCollapsible>
-      </aside>
+        </WorkflowWorkbench>
+      </main>
     </div>
   </UApp>
 </template>

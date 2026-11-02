@@ -9,6 +9,7 @@ import type { WidgetSlotProps } from "./editor";
 
 // The default literal editor, picked from the type's schema. Hosts replace it through the canvas's #widget slot.
 const props = defineProps<WidgetSlotProps>();
+const m = computed(() => props.messages);
 
 const kind = computed(() => {
   const s = props.schema;
@@ -27,7 +28,10 @@ const options = computed(() =>
   Array.isArray(props.schema?.enum) ? (props.schema.enum as Json[]) : [],
 );
 const items = computed(() => [
-  { label: props.fallback === undefined ? "—" : `${shown(props.fallback)} (default)`, value: "-" },
+  {
+    label: props.fallback === undefined ? "—" : m.value.defaultValue(shown(props.fallback)),
+    value: "-",
+  },
   ...options.value.map((o, i) => ({ label: shown(o), value: String(i) })),
 ]);
 const chosen = computed(() => {
@@ -86,7 +90,7 @@ function json(text: string): void {
     :color="badJson ? 'error' : 'neutral'"
     :highlight="badJson"
     :default-value="shown(value)"
-    :placeholder="shown(fallback) || 'JSON'"
+    :placeholder="shown(fallback) || m.json"
     @change="json(($event.target as HTMLInputElement).value)"
   />
 </template>

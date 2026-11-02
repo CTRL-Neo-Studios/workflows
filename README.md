@@ -113,13 +113,7 @@ Peer dependencies: `vue`, `@vue-flow/core` and `@nuxt/ui`. The components are bu
 ```vue
 <script setup lang="ts">
 import "@type32/workflows/vue/style.css";
-import {
-  useWorkflowEditor,
-  WorkflowCanvas,
-  WorkflowDiagnostics,
-  WorkflowPalette,
-  WorkflowWidget,
-} from "@type32/workflows/vue";
+import { useWorkflowEditor, WorkflowWidget, WorkflowWorkbench } from "@type32/workflows/vue";
 
 const editor = useWorkflowEditor(vertex.manifest, document); // the manifest is enough to edit
 async function start() {
@@ -133,32 +127,60 @@ async function start() {
 </script>
 
 <template>
-  <WorkflowPalette :editor="editor" />
-  <WorkflowCanvas :editor="editor">
+  <!-- canvas, node library and inspector; or compose WorkflowCanvas, WorkflowPalette, WorkflowInspector yourself -->
+  <WorkflowWorkbench :editor="editor">
+    <template #toolbar><UButton label="Run" @click="start" /></template>
     <!-- optional: replace one type's literal editor, keep the default for the rest -->
     <template #widget="w">
       <MyFilePicker v-if="w.type?.kind === 'con' && w.type.id === 'vertex.File'" v-bind="w" />
       <WorkflowWidget v-else v-bind="w" />
     </template>
-  </WorkflowCanvas>
-  <WorkflowDiagnostics :editor="editor" />
+  </WorkflowWorkbench>
 </template>
 ```
 
-`analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Nodes follow the host's Nuxt UI theme; port and wire colors are `--wf-*` CSS variables, and `TypeDef.color` takes a palette name (`sky`, `rose`, …) or any CSS color. `bun run play` opens a playground with the §10 language and an in-memory vault.
+`analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Nodes follow the host's Nuxt UI theme; port and wire colors are `--wf-*` CSS variables. `bun run play` opens a playground with the §10 language and an in-memory vault.
+
+Languages group their nodes into categories, which give the node library its sections and the nodes their header color. A label can embed inputs, which the node shows inline as a sentence:
+
+```ts
+defineLanguage({ id: "notes", version: 1, include: [std] })
+  .category({ id: "notes.files", label: "Files", color: "teal", icon: "i-lucide-folder" })
+  .node({
+    type: "notes.rename",
+    label: "Rename {file} to {newName}", // inputs named here render inline
+    category: "notes.files",
+    // …
+  });
+```
+
+Colors (`TypeDef`, `CategoryDef`, and a node's own `color`) take a palette name (`sky`, `rose`, …) or any CSS color.
+
+On the canvas, dragging empty space draws a selection box; scroll, two fingers, Space+drag or the middle button pan, and ⌘/Ctrl+scroll or a pinch zooms. Shortcuts: ⌘Z / ⇧⌘Z undo and redo (every document edit except the viewport), ⌘C / ⌘X / ⌘V / ⌘D copy, cut, paste at the cursor and duplicate, ⌘A select all, Tab or a double-click opens a node search at the cursor. Dropping a wire on empty space opens that search filtered to nodes that can take it, and wires the one you pick. Right-clicking the canvas, a node, an edge or a port opens a menu; `WorkflowCanvas`'s `menu` prop can change its items, and its `#selection` slot adds buttons to the bar shown under a multi-node selection.
+
+```ts
+const editor = useWorkflowEditor(vertex.manifest, document, {
+  messages: () => ({ undo: t("undo"), selected: (n) => t("selected", { n }) }), // translate the built-in strings
+  clipboard: { read: readText, write: writeText }, // default: navigator.clipboard
+});
+```
+
+Copies go to the clipboard as JSON (`parseClip` reads them back), so they paste into another document of the same language. When the clipboard can't be read (a denied permission), paste falls back to the last copy made in the app.
+
+Programs grow structure from the library and the selection bar. Variables and My Blocks in the node library create variables and blocks (functions); click or drag a variable for a Get, ⌥ for a Set; the inspector edits the declaration behind a selected node (a block's name, inputs, outputs and exits). An exec block may have several exits, and each Return names one, so a call can branch like `std.if`. Select nodes and choose Make block to move them into a new block called in their place (`extractFunction` in core does the work), or Group to frame them; dragging a group's header moves what's inside it, and the canvas menu adds sticky comments. Groups and comments live in `view`, so they don't change the program hash. Double-click a call to open its block; the breadcrumb leads back.
 
 ## Scripts
 
-| Script              | Does                                                    |
-| ------------------- | ------------------------------------------------------- |
-| `bun run build`     | Bundle `src/core` and `src/vue` → `dist/` + `.d.mts`    |
-| `bun run play`      | Vite playground (`playground/`)                         |
-| `bun run test`      | Run Vitest once (`test:watch` to watch)                 |
+| Script              | Does                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bun run build`     | Bundle `src/core` and `src/vue` → `dist/` + `.d.mts`                                                   |
+| `bun run play`      | Vite playground (`playground/`)                                                                        |
+| `bun run test`      | Run Vitest once (`test:watch` to watch)                                                                |
 | `bun run typecheck` | `ui:prepare` (generates Nuxt UI's theme types), vue-tsc (TypeScript 6.0.3), TypeScript 7 on `src/core` |
-| `bun run lint`      | Oxlint                                                  |
-| `bun run format`    | Oxfmt (`format:check` to verify only)                   |
-| `bun run check`     | lint + format:check + typecheck + test                  |
-| `bun run changeset` | Record a change for the next release                    |
+| `bun run lint`      | Oxlint                                                                                                 |
+| `bun run format`    | Oxfmt (`format:check` to verify only)                                                                  |
+| `bun run check`     | lint + format:check + typecheck + test                                                                 |
+| `bun run changeset` | Record a change for the next release                                                                   |
 
 Minimum supported TypeScript for consumers is **6.0.3**, the pinned dev `typescript`, so `typecheck` runs against it. vue-tsc needs the TypeScript API, which 7.0 lacks; TypeScript 7 (`typescript7`) checks `src/core` with no DOM lib. Subpath exports are listed by hand in `package.json`.
 

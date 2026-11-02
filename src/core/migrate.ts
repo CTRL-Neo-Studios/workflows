@@ -1,8 +1,10 @@
 // The boundary for untrusted documents (§6.2): parse `unknown` into a clean DocumentV1, then migrate it.
 import type { Diagnostic } from "./diagnostics";
 import type {
+  Comment,
   DocumentV1,
   EdgeInstance,
+  Frame,
   FunctionDecl,
   Graph,
   Group,
@@ -171,6 +173,7 @@ function fn(value: unknown, at: string): FunctionDecl {
   if (o.typeParams !== undefined)
     out.typeParams = list(o.typeParams, `${at}.typeParams`, typeParam);
   if (o.locals !== undefined) out.locals = list(o.locals, `${at}.locals`, variable);
+  if (o.exits !== undefined) out.exits = list(o.exits, `${at}.exits`, str);
   return out;
 }
 
@@ -183,16 +186,29 @@ function program(value: unknown, at: string): Program {
   };
 }
 
-function group(value: unknown, at: string): Group {
-  const o = obj(value, at);
-  const out: Group = {
+function frame(o: Record<string, unknown>, at: string): Frame {
+  const out: Frame = {
     id: str(o.id, `${at}.id`),
     graph: str(o.graph, `${at}.graph`),
-    nodes: list(o.nodes, `${at}.nodes`, str),
+    x: num(o.x, `${at}.x`),
+    y: num(o.y, `${at}.y`),
+    width: num(o.width, `${at}.width`),
+    height: num(o.height, `${at}.height`),
   };
-  if (o.label !== undefined) out.label = str(o.label, `${at}.label`);
   if (o.color !== undefined) out.color = str(o.color, `${at}.color`);
   return out;
+}
+
+function group(value: unknown, at: string): Group {
+  const o = obj(value, at);
+  const out: Group = frame(o, at);
+  if (o.label !== undefined) out.label = str(o.label, `${at}.label`);
+  return out;
+}
+
+function comment(value: unknown, at: string): Comment {
+  const o = obj(value, at);
+  return { ...frame(o, at), text: str(o.text, `${at}.text`) };
 }
 
 function view(value: unknown, at: string): View {
@@ -205,6 +221,7 @@ function view(value: unknown, at: string): View {
     positions: record(o.positions, `${at}.positions`, point),
     groups: list(o.groups, `${at}.groups`, group),
   };
+  if (o.comments !== undefined) out.comments = list(o.comments, `${at}.comments`, comment);
   if (o.viewport !== undefined) {
     const v = obj(o.viewport, `${at}.viewport`);
     out.viewport = {

@@ -1,7 +1,9 @@
 export type { Diagnostic, DiagnosticCode, DiagnosticLocation } from "./diagnostics";
 export type {
+  Comment,
   DocumentV1,
   EdgeInstance,
+  Frame,
   FunctionDecl,
   Graph,
   Group,
@@ -11,6 +13,7 @@ export type {
   VariableDecl,
   View,
 } from "./document";
+export { extractFunction, nextId, type ExtractResult } from "./extract";
 export { hashProgram } from "./hash";
 export {
   defineLanguage,
@@ -34,9 +37,13 @@ export {
 } from "./language";
 export {
   conversionKey,
+  labelText,
+  parseLabel,
   type CapabilityDef,
+  type CategoryDef,
   type ConversionDef,
   type DataPortDef,
+  type LabelPart,
   type LanguageManifest,
   type NodeManifest,
   type NodeMode,

@@ -21,7 +21,9 @@ export const PALETTE: readonly string[] = [
   "rose",
 ];
 
-const named = (color: string): string => (PALETTE.includes(color) ? `var(--wf-${color})` : color);
+/** A palette name as its `--wf-<name>` variable; any other value is taken as CSS. */
+export const paletteColor = (color: string): string =>
+  PALETTE.includes(color) ? `var(--wf-${color})` : color;
 
 function hash(s: string): number {
   let h = 0;
@@ -39,10 +41,10 @@ export function typeColor(types: TypeTable, term: TypeTerm | undefined): string 
   if (term.id === "Dictionary") return typeColor(types, term.args?.[1]);
   if (["any", "string", "number", "boolean"].includes(term.id)) return `var(--wf-type-${term.id})`;
   for (let def = types.get(term.id); def;) {
-    if (def.color) return named(def.color);
+    if (def.color) return paletteColor(def.color);
     def = def.extends?.kind === "con" ? types.get(def.extends.id) : undefined;
   }
-  return named(PALETTE[hash(term.id) % PALETTE.length]!);
+  return paletteColor(PALETTE[hash(term.id) % PALETTE.length]!);
 }
 
 /** Handle shape: a circle for one value, a square grid for a List, a diamond for a Dictionary. */

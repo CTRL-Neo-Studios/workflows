@@ -43,6 +43,64 @@
   border-radius: var(--ui-radius);
 }
 
+/* Category color (--wf-cat, set per node): a tinted header and a solid icon tile; the body stays neutral. */
+
+.wf-node-header {
+  background: color-mix(in oklab, var(--wf-cat) 14%, var(--ui-bg));
+  border-color: color-mix(in oklab, var(--wf-cat) 30%, var(--ui-border));
+}
+
+.wf-node-tile {
+  background: var(--wf-cat);
+  color: var(--ui-bg);
+}
+
+.wf-cat-dot {
+  background: var(--wf-cat, var(--ui-bg-accented));
+}
+
+/* Groups and comments (--wf-frame, set per frame). A group lets clicks through its body to the canvas. */
+
+.vue-flow__node-wf-group {
+  pointer-events: none;
+}
+
+.wf-frame-group {
+  border: 2px solid color-mix(in oklab, var(--wf-frame, var(--ui-text-dimmed)) 55%, transparent);
+  background: color-mix(in oklab, var(--wf-frame, var(--ui-text-dimmed)) 8%, transparent);
+}
+
+.wf-frame-group .wf-frame-handle {
+  background: color-mix(in oklab, var(--wf-frame, var(--ui-text-dimmed)) 20%, transparent);
+}
+
+.wf-frame-handle,
+.wf-frame-resize {
+  pointer-events: auto;
+}
+
+.wf-frame-comment {
+  background: color-mix(in oklab, var(--wf-frame, var(--wf-yellow)) 22%, var(--ui-bg));
+  border: 1px solid color-mix(in oklab, var(--wf-frame, var(--wf-yellow)) 50%, transparent);
+}
+
+/* Box selection while dragging, then the frame around what it selected (drag it to move them all). */
+
+.wf-canvas .vue-flow__selection {
+  border: 1px solid var(--ui-primary);
+  border-radius: calc(var(--ui-radius) * 1.5);
+  background: color-mix(in oklab, var(--ui-primary) 10%, transparent);
+}
+
+.wf-canvas .vue-flow__nodesselection-rect {
+  margin: -6px 0 0 -6px;
+  padding: 6px;
+  box-sizing: content-box;
+  border: 1px dashed color-mix(in oklab, var(--ui-primary) 60%, transparent);
+  border-radius: calc(var(--ui-radius) * 2.5);
+  background: color-mix(in oklab, var(--ui-primary) 4%, transparent);
+}
+
 /* Ports: circle = one value, square = List, diamond = Dictionary, arrow = exec. Hollow until wired. */
 
 .wf-port-in .vue-flow__handle {

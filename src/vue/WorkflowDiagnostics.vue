@@ -7,6 +7,7 @@ import type { Diagnostic } from "../core";
 import type { WorkflowEditor } from "./editor";
 
 const { editor } = defineProps<{ editor: WorkflowEditor }>();
+const m = editor.messages;
 
 const diagnostics = computed(() => editor.analysis.value.diagnostics);
 const capabilities = computed(() => {
@@ -43,14 +44,14 @@ function show(d: Diagnostic): void {
           :label="c.label"
         />
       </UTooltip>
-      <span v-if="!capabilities.length" class="text-xs text-muted">No capabilities needed</span>
+      <span v-if="!capabilities.length" class="text-xs text-muted">{{ m.noCapabilities }}</span>
     </div>
     <UAlert
       v-if="!diagnostics.length"
       color="success"
       variant="subtle"
       icon="i-lucide-circle-check"
-      title="No problems"
+      :title="m.noProblems"
     />
     <div
       v-for="(d, i) in diagnostics"

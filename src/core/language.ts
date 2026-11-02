@@ -1,6 +1,7 @@
 import type { NodeInstance, Program } from "./document";
 import {
   type CapabilityDef,
+  type CategoryDef,
   checkManifest,
   type ConversionDef,
   conversionKey,
@@ -176,7 +177,7 @@ export interface ConversionImpl extends ConversionDef {
 export interface LanguageOptions {
   id: string;
   version: number;
-  /** Languages whose types, capabilities, conversions and nodes are merged in (e.g. std). */
+  /** Languages whose types, capabilities, categories, conversions and nodes are merged in (e.g. std). */
   include?: readonly Language<object>[];
   migrate?: Record<number, DocumentMigration>;
 }
@@ -190,6 +191,7 @@ export class LanguageBuilder<E extends object, V = {}> {
   readonly #types: TypeDef[] = [];
   readonly #capabilities: CapabilityDef[] = [];
   readonly #conversions: ConversionImpl[] = [];
+  readonly #categories: CategoryDef[] = [];
   readonly #nodes: StoredNode<E>[] = [];
 
   constructor(options: LanguageOptions) {
@@ -203,6 +205,11 @@ export class LanguageBuilder<E extends object, V = {}> {
 
   capability(def: CapabilityDef): this {
     this.#capabilities.push(def);
+    return this;
+  }
+
+  category(def: CategoryDef): this {
+    this.#categories.push(def);
     return this;
   }
 
@@ -256,6 +263,7 @@ export class LanguageBuilder<E extends object, V = {}> {
         ...this.#conversions.map(({ from, to }) => ({ from, to })),
       ],
       capabilities: [...include.flatMap((l) => l.manifest.capabilities), ...this.#capabilities],
+      categories: [...include.flatMap((l) => l.manifest.categories ?? []), ...this.#categories],
       nodes: [...include.flatMap((l) => l.manifest.nodes), ...nodeManifests],
     };
     checkManifest(manifest);

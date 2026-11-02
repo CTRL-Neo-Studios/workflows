@@ -39,12 +39,23 @@ function equal(a: unknown, b: unknown): boolean {
 }
 
 export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
+  // Colors after Scratch's: Control amber, Operators green, Lists red.
+  .category({ id: "std.control", label: "Control", color: "amber", icon: "i-lucide-repeat" })
+  .category({ id: "std.logic", label: "Logic", color: "green", icon: "i-lucide-toggle-right" })
+  .category({ id: "std.text", label: "Text", color: "lime", icon: "i-lucide-type" })
+  .category({ id: "std.lists", label: "Lists", color: "red", icon: "i-lucide-list" })
+  .category({
+    id: "std.dictionaries",
+    label: "Dictionaries",
+    color: "rose",
+    icon: "i-lucide-book-key",
+  })
   .node({
     type: "std.if",
     version: 1,
     mode: "exec",
     label: "If",
-    category: "Control",
+    category: "std.control",
     description:
       "Runs then or else, then continues on done. Values set in the branch stay visible after it.",
     exec: { out: ["then", "else", "done"] },
@@ -59,7 +70,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "exec",
     label: "For Each",
-    category: "Control",
+    category: "std.control",
     description: "Runs body once per item, each in its own scope, then continues on done.",
     typeParams: [{ name: "T" }],
     exec: { out: ["body", "done"] },
@@ -77,7 +88,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "exec",
     label: "Sequence",
-    category: "Control",
+    category: "std.control",
     description: "Runs then0, then1, … in order.",
     exec: { out: [] },
     variadic: { kind: "execOut", prefix: "then", min: 1 },
@@ -90,7 +101,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "exec",
     label: "Try",
-    category: "Control",
+    category: "std.control",
     description:
       "Runs body; if it faults, runs catch with the error message. Then continues on done. Limits and aborts can't be caught.",
     exec: { out: ["body", "catch", "done"] },
@@ -111,7 +122,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Equals",
-    category: "Logic",
+    category: "std.logic",
     typeParams: [{ name: "T" }],
     inputs: { a: { type: T }, b: { type: T } },
     outputs: { result: { type: bool } },
@@ -122,7 +133,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Not",
-    category: "Logic",
+    category: "std.logic",
     inputs: { value: { type: bool, required: true } },
     outputs: { result: { type: bool } },
     run: ({ inputs }) => ({ result: !inputs.value }),
@@ -132,7 +143,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "And",
-    category: "Logic",
+    category: "std.logic",
     inputs: { a: { type: bool, required: true }, b: { type: bool, required: true } },
     outputs: { result: { type: bool } },
     run: ({ inputs }) => ({ result: inputs.a && inputs.b }),
@@ -142,7 +153,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Or",
-    category: "Logic",
+    category: "std.logic",
     inputs: { a: { type: bool, required: true }, b: { type: bool, required: true } },
     outputs: { result: { type: bool } },
     run: ({ inputs }) => ({ result: inputs.a || inputs.b }),
@@ -152,7 +163,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Concat",
-    category: "Text",
+    category: "std.text",
     variadic: { kind: "input", prefix: "arg", type: str, min: 1 },
     outputs: { out: { type: str } },
     run: ({ inputs, variadic }) => ({
@@ -164,7 +175,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Length",
-    category: "Lists",
+    category: "std.lists",
     typeParams: [{ name: "T" }],
     inputs: { list: { type: List(T), required: true } },
     outputs: { length: { type: num } },
@@ -175,7 +186,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Append",
-    category: "Lists",
+    category: "std.lists",
     description: "A new List with item added at the end; the input is unchanged.",
     typeParams: [{ name: "T" }],
     inputs: { list: { type: List(T), required: true }, item: { type: T, required: true } },
@@ -187,7 +198,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Flatten",
-    category: "Lists",
+    category: "std.lists",
     typeParams: [{ name: "T" }],
     inputs: { list: { type: List(List(T)), required: true } },
     outputs: { list: { type: List(T) } },
@@ -198,7 +209,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "exec",
     label: "Get",
-    category: "Dictionaries",
+    category: "std.dictionaries",
     typeParams: [{ name: "K" }, { name: "V" }],
     exec: { out: ["found", "missing"] },
     inputs: { dict: { type: Dict, required: true }, key: { type: K, required: true } },
@@ -215,7 +226,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Set",
-    category: "Dictionaries",
+    category: "std.dictionaries",
     description: "A new Dictionary with key set to value; the input is unchanged.",
     typeParams: [{ name: "K" }, { name: "V" }],
     inputs: {
@@ -231,7 +242,7 @@ export const std: Language<object> = defineLanguage({ id: "std", version: 1 })
     version: 1,
     mode: "pure",
     label: "Keys",
-    category: "Dictionaries",
+    category: "std.dictionaries",
     typeParams: [{ name: "K" }, { name: "V" }],
     inputs: { dict: { type: Dict, required: true } },
     outputs: { keys: { type: List(K) } },

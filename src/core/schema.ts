@@ -1,4 +1,6 @@
-export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+// `string` before `boolean`: Vue derives prop types from this order, and a Boolean ahead of String turns an
+// empty-string prop into `true`.
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
 /**
  * A JSON Schema subset (§3.2): type, enum, const, items, properties, required, additionalProperties,

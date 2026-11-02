@@ -62,8 +62,10 @@ export interface FunctionDecl {
   exec: boolean;
   inputs: Record<string, DataPortDef>;
   outputs: Record<string, DataPortDef>;
+  /** An exec function's exec outputs, each named by the core.return nodes that leave through it. Default `['then']`. */
+  exits?: string[];
   locals?: VariableDecl[];
-  /** Exactly one core.entry; exactly one core.return. */
+  /** Exactly one core.entry. A pure function has exactly one core.return, an exec function at least one. */
   graph: Graph;
 }
 
@@ -71,13 +73,29 @@ export interface FunctionDecl {
 export interface View {
   positions: Record<string, { x: number; y: number }>;
   groups: Group[];
+  comments?: Comment[];
   viewport?: { x: number; y: number; zoom: number };
 }
 
-export interface Group {
+/** A rectangle on the canvas of one graph, in flow coordinates. */
+export interface Frame {
   id: string;
-  graph: "main" | string;
-  label?: string;
+  /** `'main'` or a function id. */
+  graph: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** A palette name or any CSS color. */
   color?: string;
-  nodes: string[];
+}
+
+/** A frame around nodes: the nodes inside it move with it. */
+export interface Group extends Frame {
+  label?: string;
+}
+
+/** A sticky note. */
+export interface Comment extends Frame {
+  text: string;
 }

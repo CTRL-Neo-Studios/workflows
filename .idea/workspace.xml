@@ -6,6 +6,30 @@
   <component name="ChangeListManager">
     <list default="true" id="ca53fdc1-1922-46b9-99b6-e24633989879" name="Changes" comment="chore: Update IDE workspace metadata">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/playground/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/playground/App.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/document.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/document.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/fixtures/section10.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/fixtures/section10.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/language.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/language.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/language.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/language.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/manifest.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/manifest.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/migrate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/migrate.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/program.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/program.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/runtime.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/runtime.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/schema.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/std.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/std.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/validate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/validate.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/WorkflowCanvas.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/WorkflowCanvas.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/WorkflowDiagnostics.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/WorkflowDiagnostics.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/WorkflowNode.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/WorkflowNode.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/WorkflowPalette.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/WorkflowPalette.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/WorkflowWidget.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/WorkflowWidget.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/editor.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/editor.test.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/editor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/editor.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vue/theme.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/vue/theme.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -137,7 +161,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1793496424936</updated>
-      <workItem from="1793496425937" duration="8065000" />
+      <workItem from="1793496425937" duration="8674000" />
     </task>
     <task id="LOCAL-00001" summary="chore: Add core type system and expose it via `./core` export">
       <option name="closed" value="true" />
@@ -243,7 +267,15 @@
       <option name="project" value="LOCAL" />
       <updated>1793564027877</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="chore: Update IDE workspace metadata">
+      <option name="closed" value="true" />
+      <created>1793569068358</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1793569068358</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

@@ -8,7 +8,7 @@ import USelect from "@nuxt/ui/components/Select.vue";
 import UTooltip from "@nuxt/ui/components/Tooltip.vue";
 import { Handle, Position, type ValidConnectionFunc } from "@vue-flow/core";
 import { computed, inject } from "vue";
-import { formatType, isGround, t, type DataPortDef, type Json, type TypeTerm } from "../core";
+import { formatType, parseLabel, t, type DataPortDef, type TypeTerm } from "../core";
 import { CANVAS, handleId, portOf, type WidgetSlotProps } from "./editor";
 import { formatValue, MODE_STYLES, typeColor, typeShape } from "./theme";
 import WorkflowWidget from "./WorkflowWidget.vue";
@@ -26,6 +26,17 @@ const manifest = computed(
   () => ports.value?.manifest ?? editor.manifest.nodes.find((m) => m.type === node.value?.type),
 );
 const style = computed(() => MODE_STYLES[manifest.value?.mode ?? "exec"]);
+const look = computed(() => editor.look(node.value?.type ?? ""));
+// A sentence label ('Rename {file} to {newName}') puts those inputs' editors in the header. Core nodes are
+// titled by their declaration.
+const parts = computed(() =>
+  node.value?.type.startsWith("core.")
+    ? [{ text: editor.title(id) }]
+    : parseLabel(manifest.value?.label ?? node.value?.type ?? ""),
+);
+const inline = computed(() => new Set(parts.value.flatMap((p) => ("input" in p ? [p.input] : []))));
+const inputDef = (name: string): DataPortDef | undefined =>
+  ports.value?.inputs.find(([n]) => n === name)?.[1];
 const problems = computed(() => editor.problems.value.nodes.get(id) ?? []);
 const trace = computed(() => editor.traced.value.nodes.get(id));
 const edges = computed(() => editor.graph.value.edges);
@@ -57,18 +68,8 @@ const label = (name: string, def: DataPortDef): string => def.label ?? name;
 // The default exec ports carry no information beyond their arrow.
 const execLabel = (name: string): string => (name === "exec" || name === "then" ? "" : name);
 
-function widget(port: string, def: DataPortDef): WidgetSlotProps {
-  const type = typeIn(port);
-  return {
-    node: id,
-    port,
-    type,
-    schema: type && isGround(type) ? editor.types.schemaFor(type) : undefined,
-    value: node.value?.literals?.[port],
-    fallback: def.default,
-    update: (value: Json | undefined) => editor.setLiteral(id, port, value),
-  };
-}
+// Rendered only for inputs the node has, so the props exist.
+const widget = (port: string): WidgetSlotProps => editor.widgetFor(id, port)!;
 
 // Pins offered for type parameters: param-less types; a pin to anything else is shown as-is.
 // Select items can't use an empty value, so `*` stands for "inferred".
@@ -83,7 +84,10 @@ function pinItems(name: string): { label: string; value: string }[] {
   ];
   const current = pinned(name);
   if (current !== AUTO && !ids.includes(current)) ids.unshift(current);
-  return [{ label: "auto", value: AUTO }, ...ids.map((x) => ({ label: x, value: x }))];
+  return [
+    { label: editor.messages.value.auto, value: AUTO },
+    ...ids.map((x) => ({ label: x, value: x })),
+  ];
 }
 function pinned(name: string): string {
   const term = node.value?.typeArgs?.[name];
@@ -95,6 +99,12 @@ function pin(name: string, value: string): void {
 
 const variadic = computed(() => manifest.value?.variadic);
 const count = computed(() => node.value?.variadic ?? variadic.value?.min ?? 0);
+// A return in a block with several exits picks the one it leaves through.
+const exits = computed(() => {
+  if (node.value?.type !== "core.return") return [];
+  const fn = editor.document.value.program.functions.find((f) => f.id === editor.graphId.value);
+  return fn?.exec && fn.exits && fn.exits.length > 1 ? fn.exits : [];
+});
 
 const checkConnection: ValidConnectionFunc = (c) => {
   const problem = editor.connectionProblem(
@@ -102,7 +112,9 @@ const checkConnection: ValidConnectionFunc = (c) => {
     { node: c.target, port: portOf(c.targetHandle) },
   );
   // The edge id in "e10: string → vertex.File" names an edge that doesn't exist yet.
-  hint.value = problem && `Can't connect: ${problem.message.replace(`${problem.at?.edge}: `, "")}`;
+  hint.value =
+    problem &&
+    editor.messages.value.cantConnect(problem.message.replace(`${problem.at?.edge}: `, ""));
   return !problem;
 };
 </script>
@@ -110,9 +122,13 @@ const checkConnection: ValidConnectionFunc = (c) => {
 <template>
   <UCard
     class="wf-node"
+    :style="look.color ? { '--wf-cat': look.color } : {}"
     :ui="{
-      root: ['min-w-44 overflow-visible transition-shadow', ring],
-      header: 'px-3 py-2 sm:px-3',
+      root: ['min-w-44 max-w-112 overflow-visible transition-shadow', ring],
+      header: [
+        'rounded-t-[calc(var(--ui-radius)*2)] px-3 py-2 sm:px-3',
+        look.color && 'wf-node-header',
+      ],
       body: 'px-3 py-1.5 sm:px-3 sm:py-1.5',
       footer: 'px-3 py-2 sm:px-3',
     }"
@@ -120,13 +136,33 @@ const checkConnection: ValidConnectionFunc = (c) => {
     <template #header>
       <div class="flex items-center gap-2" :title="manifest?.description">
         <span
-          class="flex size-6 shrink-0 items-center justify-center rounded-md"
-          :class="style.tile"
+          class="flex size-6 shrink-0 items-center justify-center self-start rounded-md"
+          :class="look.color ? 'wf-node-tile' : style.tile"
         >
-          <UIcon :name="manifest?.icon ?? style.icon" class="size-3.5" />
+          <UIcon :name="look.icon" class="size-3.5" />
         </span>
-        <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted">
-          {{ manifest?.label ?? node?.type }}
+        <span
+          class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm font-medium text-highlighted"
+        >
+          <template v-for="(p, i) in parts" :key="i">
+            <span v-if="'text' in p" class="whitespace-pre-wrap">{{ p.text.trim() }}</span>
+            <template v-else-if="inputDef(p.input)">
+              <UBadge
+                v-if="wiredIn.has(p.input)"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                icon="i-lucide-plug"
+                :label="label(p.input, inputDef(p.input)!)"
+              />
+              <span v-else class="nodrag nowheel inline-flex font-normal">
+                <slot name="widget" v-bind="widget(p.input)">
+                  <WorkflowWidget v-bind="widget(p.input)" />
+                </slot>
+              </span>
+            </template>
+            <span v-else class="text-muted">{{ "{" + p.input + "}" }}</span>
+          </template>
         </span>
         <UBadge
           v-if="trace?.runs"
@@ -176,8 +212,10 @@ const checkConnection: ValidConnectionFunc = (c) => {
           />
           <span class="text-xs text-muted">{{ execLabel(name) }}</span>
         </div>
+        <!-- Inputs shown in a sentence label keep their row for the wire, without a second editor; settings
+             (no wire) in the sentence need no row at all. -->
         <div
-          v-for="[name, def] in ports.inputs"
+          v-for="[name, def] in ports.inputs.filter(([n, d]) => !inline.has(n) || d.wire !== false)"
           :key="`d-${name}`"
           class="wf-port wf-port-in relative flex min-h-7 items-center gap-1.5"
           :style="portStyle(typeIn(name))"
@@ -189,6 +227,7 @@ const checkConnection: ValidConnectionFunc = (c) => {
             :position="Position.Left"
             class="wf-handle wf-handle-data"
             :class="[`wf-shape-${typeShape(typeIn(name))}`, { 'wf-wired': wiredIn.has(name) }]"
+            v-bind="{ title: formatType(typeIn(name) ?? def.type) }"
             :is-valid-connection="checkConnection"
           />
           <UTooltip :text="portProblem(name) ?? formatType(typeIn(name) ?? def.type)">
@@ -199,9 +238,9 @@ const checkConnection: ValidConnectionFunc = (c) => {
               {{ label(name, def) }}<span v-if="def.required" class="text-error">*</span>
             </span>
           </UTooltip>
-          <div v-if="!wiredIn.has(name)" class="nodrag nowheel">
-            <slot name="widget" v-bind="widget(name, def)">
-              <WorkflowWidget v-bind="widget(name, def)" />
+          <div v-if="!wiredIn.has(name) && !inline.has(name)" class="nodrag nowheel">
+            <slot name="widget" v-bind="widget(name)">
+              <WorkflowWidget v-bind="widget(name)" />
             </slot>
           </div>
         </div>
@@ -247,6 +286,7 @@ const checkConnection: ValidConnectionFunc = (c) => {
             :position="Position.Right"
             class="wf-handle wf-handle-data"
             :class="[`wf-shape-${typeShape(typeOut(name))}`, { 'wf-wired': wiredOut.has(name) }]"
+            v-bind="{ title: formatType(typeOut(name) ?? def.type) }"
             :is-valid-connection="checkConnection"
           />
         </div>
@@ -264,8 +304,16 @@ const checkConnection: ValidConnectionFunc = (c) => {
       :ui="{ root: 'p-2 gap-2', title: 'text-xs', description: 'text-xs', icon: 'size-4' }"
     />
 
-    <template v-if="ports && (manifest?.typeParams?.length || variadic)" #footer>
+    <template v-if="ports && (manifest?.typeParams?.length || variadic || exits.length)" #footer>
       <div class="nodrag flex flex-wrap items-center gap-2">
+        <USelect
+          v-if="exits.length"
+          size="xs"
+          class="w-32"
+          :items="exits"
+          :model-value="node?.ref ?? exits[0] ?? ''"
+          @update:model-value="editor.setRef(id, String($event))"
+        />
         <div
           v-for="p in manifest?.typeParams ?? []"
           :key="p.name"

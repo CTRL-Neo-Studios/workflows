@@ -1,5 +1,5 @@
 import type { Diagnostic, DiagnosticCode, DiagnosticLocation } from "./diagnostics";
-import type { DocumentV1, EdgeInstance, Graph } from "./document";
+import type { DocumentV1, EdgeInstance, Graph, VariableDecl } from "./document";
 import { type Constraint, type Instance, resolve, solve, type TypeVar } from "./infer";
 import {
   checkManifest,
@@ -31,6 +31,11 @@ export interface Analysis {
   convertedEdges: ReadonlySet<string>;
   /** Capabilities of every node reachable from an event node, including through called functions (§7). */
   capabilities: ReadonlySet<string>;
+  /**
+   * Every core.call of function `id` and core.get / core.set of variable `id` (a document variable or a local of
+   * the node's function), in document order. Read from the document, whether or not those nodes are valid.
+   */
+  references(id: string): { graph: string; node: string }[];
 }
 
 export interface NodePorts {
@@ -153,10 +158,10 @@ function backEdges<T extends { from: Instance; to: Instance; edge: EdgeInstance 
   return found;
 }
 
-/** A function body's entry and return instances, when present. */
+/** A function body's entry, when present, and its return instances. */
 export interface Body {
   entry?: Instance;
-  ret?: Instance;
+  rets: Instance[];
 }
 
 /** What `compile` needs beyond the public `Analysis`. */
@@ -167,7 +172,7 @@ export interface Analyzed {
   dataEdges: readonly DataEdge[];
   decls: Declarations;
   bodies: ReadonlyMap<string, Body>;
-  /** core.call → its callee's entry and return, so reachability follows calls. */
+  /** core.call → its callee's entry and returns, so reachability follows calls. */
   calls: ReadonlyMap<Instance, Instance[]>;
 }
 
@@ -248,6 +253,26 @@ export function analyze(doc: DocumentV1, manifest: LanguageManifest): Analyzed {
     },
     convertedEdges,
     capabilities,
+    references(id) {
+      const { graph: main, variables, functions } = doc.program;
+      const isFunction = functions.some((f) => f.id === id);
+      const isGlobal = variables.some((v) => v.id === id);
+      return [
+        { graph: "main", nodes: main.nodes, locals: [] as VariableDecl[] },
+        ...functions.map((f) => ({ graph: f.id, nodes: f.graph.nodes, locals: f.locals ?? [] })),
+      ].flatMap(({ graph, nodes, locals }) => {
+        const isVariable = isGlobal || locals.some((v) => v.id === id);
+        return nodes
+          .filter(
+            (n) =>
+              n.ref === id &&
+              (n.type === "core.call"
+                ? isFunction
+                : (n.type === "core.get" || n.type === "core.set") && isVariable),
+          )
+          .map((n) => ({ graph, node: n.id }));
+      });
+    },
   };
   const empty: Declarations = { variables: new Map(), functions: new Map() };
   const analyzed: Analyzed = {
@@ -383,21 +408,27 @@ export function analyze(doc: DocumentV1, manifest: LanguageManifest): Analyzed {
       }
       const inst: Instance = { node, manifest: m, variadic: n, vars, graph };
       instances.set(node.id, inst);
-      if (fn && node.type === "core.entry")
-        bodies.set(graph, { ...bodies.get(graph), entry: inst });
-      if (fn && node.type === "core.return") bodies.set(graph, { ...bodies.get(graph), ret: inst });
+      const body = fn ? (bodies.get(graph) ?? { rets: [] }) : undefined;
+      if (body && node.type === "core.entry") bodies.set(graph, { ...body, entry: inst });
+      if (body && node.type === "core.return")
+        bodies.set(graph, { ...body, rets: [...body.rets, inst] });
     }
   }
 
-  // Function shape (§6): one entry and one return; no event nodes (only a call starts a body); a pure function's
-  // body has no exec nodes.
+  // Function shape (§6): one entry; one return in a pure function, at least one in an exec function; no event
+  // nodes (only a call starts a body); a pure function's body has no exec nodes.
   for (const { id, graph, fn } of graphs) {
     if (!fn) continue;
     const count = (type: string): number => graph.nodes.filter((n) => n.type === type).length;
-    for (const type of ["core.entry", "core.return"]) {
-      if (count(type) !== 1)
-        report("E_FUNCTION_SHAPE", `Function '${id}' needs exactly one ${type}`, { function: id });
-    }
+    if (count("core.entry") !== 1)
+      report("E_FUNCTION_SHAPE", `Function '${id}' needs exactly one core.entry`, { function: id });
+    const rets = count("core.return");
+    if (fn.decl.exec ? rets < 1 : rets !== 1)
+      report(
+        "E_FUNCTION_SHAPE",
+        `Function '${id}' needs ${fn.decl.exec ? "at least" : "exactly"} one core.return`,
+        { function: id },
+      );
     for (const node of graph.nodes) {
       const inst = instances.get(node.id);
       const at = { function: id, node: node.id };
@@ -418,10 +449,7 @@ export function analyze(doc: DocumentV1, manifest: LanguageManifest): Analyzed {
   for (const inst of instances.values()) {
     if (inst.node.type !== "core.call") continue;
     const body = bodies.get(inst.node.ref ?? "");
-    calls.set(
-      inst,
-      [body?.entry, body?.ret].filter((x) => x !== undefined),
-    );
+    calls.set(inst, body ? [...(body.entry ? [body.entry] : []), ...body.rets] : []);
   }
 
   // Edges (§6.1), each inside its own graph.
