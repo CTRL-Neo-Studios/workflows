@@ -1,6 +1,6 @@
 {
   "name": "@type32/workflows",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Workflows Scripting Engine",
   "license": "MIT",
   "files": [
