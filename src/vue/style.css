@@ -59,6 +59,25 @@
   background: var(--wf-cat, var(--ui-bg-accented));
 }
 
+/* A node running now, during a live run. */
+
+.wf-node-running {
+  animation: wf-running 1.2s ease-in-out infinite;
+}
+
+@keyframes wf-running {
+  50% {
+    box-shadow: 0 0 18px 2px color-mix(in oklab, var(--ui-info) 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-node-running {
+    animation: none;
+    box-shadow: 0 0 14px 1px color-mix(in oklab, var(--ui-info) 45%, transparent);
+  }
+}
+
 /* Groups and comments (--wf-frame, set per frame). A group lets clicks through its body to the canvas. */
 
 .vue-flow__node-wf-group {

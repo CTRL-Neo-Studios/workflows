@@ -47,8 +47,10 @@ const wiredOut = computed(
   () => new Set(edges.value.filter((e) => e.from.node === id).map((e) => e.from.port)),
 );
 
-// The card's ring carries the node's state; later entries win.
+// The card's ring carries the node's state, the first that applies: stopped before, running, faulted, …
 const ring = computed(() => {
+  if (editor.pausedAt.value === id) return "ring-2 ring-warning shadow-lg shadow-warning/30";
+  if (editor.active.value.has(id)) return "ring-2 ring-info wf-node-running";
   if (trace.value?.fault) return "ring-2 ring-error shadow-lg shadow-error/25";
   if (selected) return "ring-2 ring-primary";
   if (problems.value.length) return "ring-error";
@@ -66,7 +68,8 @@ const portProblem = (port: string): string | undefined =>
   problems.value.find((d) => d.at?.port === port)?.message;
 const label = (name: string, def: DataPortDef): string => def.label ?? name;
 // The default exec ports carry no information beyond their arrow.
-const execLabel = (name: string): string => (name === "exec" || name === "then" ? "" : name);
+const execLabel = (name: string): string =>
+  manifest.value?.exec?.labels?.[name] ?? (name === "exec" || name === "then" ? "" : name);
 
 // Rendered only for inputs the node has, so the props exist.
 const widget = (port: string): WidgetSlotProps => editor.widgetFor(id, port)!;

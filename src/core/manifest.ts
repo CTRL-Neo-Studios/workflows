@@ -35,8 +35,11 @@ export interface NodeManifest {
   type: string;
   version: number;
   mode: NodeMode;
-  /** exec: `in` defaults to `['exec']`. event: `in` not allowed. pure/once: absent. */
-  exec?: { in?: string[]; out: string[] };
+  /**
+   * exec: `in` defaults to `['exec']`. event: `in` not allowed. pure/once: absent. `labels` are shown instead of
+   * port names (a translation, say); without one, `exec` and `then` show none.
+   */
+  exec?: { in?: string[]; out: string[]; labels?: Record<string, string> };
   typeParams?: TypeParamDef[];
   inputs?: Record<string, DataPortDef>;
   outputs?: Record<string, DataPortDef>;

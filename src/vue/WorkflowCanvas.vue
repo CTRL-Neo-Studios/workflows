@@ -460,6 +460,11 @@ const openBlock = (fn: string): void => {
 const block = computed(() =>
   editor.document.value.program.functions.find((f) => f.id === editor.graphId.value),
 );
+const paused = computed(() => editor.pausedAt.value);
+function resumeRun(): void {
+  editor.stepping.value = false;
+  editor.step();
+}
 
 // Typing in a node's fields keeps its own shortcuts and menu.
 const editable = (target: EventTarget | null): boolean =>
@@ -903,35 +908,90 @@ function addComment(screen: XY): void {
           </div>
         </div>
 
-        <div
-          v-if="block"
-          class="pointer-events-auto absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-default p-1 shadow-sm ring ring-default"
-        >
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            class="rounded-full"
-            icon="i-lucide-workflow"
-            :label="m.main"
-            @click="editor.graphId.value = 'main'"
-          />
-          <UIcon name="i-lucide-chevron-right" class="size-3.5 text-dimmed" />
-          <span class="flex items-center gap-1.5 px-2 text-xs font-medium text-highlighted">
-            <UIcon name="i-lucide-puzzle" class="size-3.5 text-(--wf-pink)" />
-            {{ block.name }}
-          </span>
-        </div>
+        <!-- Top center, stacked: where you are, the live run, the latest hint. -->
+        <div class="absolute top-3 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2">
+          <div
+            v-if="block"
+            class="pointer-events-auto flex items-center gap-0.5 rounded-full bg-default p-1 shadow-sm ring ring-default"
+          >
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              class="rounded-full"
+              icon="i-lucide-workflow"
+              :label="m.main"
+              @click="editor.graphId.value = 'main'"
+            />
+            <UIcon name="i-lucide-chevron-right" class="size-3.5 text-dimmed" />
+            <span class="flex items-center gap-1.5 px-2 text-xs font-medium text-highlighted">
+              <UIcon name="i-lucide-puzzle" class="size-3.5 text-(--wf-pink)" />
+              {{ block.name }}
+            </span>
+          </div>
 
-        <UBadge
-          v-if="hint"
-          class="absolute left-1/2 -translate-x-1/2 shadow-lg"
-          :class="block ? 'top-14' : 'top-3'"
-          color="error"
-          size="lg"
-          icon="i-lucide-circle-alert"
-          :label="hint"
-        />
+          <div
+            v-if="editor.running.value"
+            class="pointer-events-auto flex items-center gap-1 rounded-full bg-default py-1 ps-3 pe-1 shadow-lg ring ring-info/50"
+          >
+            <UIcon
+              :name="paused ? 'i-lucide-circle-pause' : 'i-lucide-loader-circle'"
+              class="size-4 text-info"
+              :class="!paused && 'animate-spin'"
+            />
+            <span class="max-w-64 truncate pe-2 text-sm text-default">{{
+              paused ? m.pausedBefore(editor.title(paused)) : m.running
+            }}</span>
+            <template v-if="paused">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                class="rounded-full"
+                icon="i-lucide-step-forward"
+                :label="m.step"
+                @click="editor.step()"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                class="rounded-full"
+                icon="i-lucide-play"
+                :label="m.resume"
+                @click="resumeRun"
+              />
+            </template>
+            <UButton
+              v-else
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="rounded-full"
+              icon="i-lucide-pause"
+              :label="m.pause"
+              @click="editor.stepping.value = true"
+            />
+            <UButton
+              color="error"
+              variant="ghost"
+              size="sm"
+              class="rounded-full"
+              icon="i-lucide-square"
+              :label="m.cancel"
+              @click="editor.cancel()"
+            />
+          </div>
+
+          <UBadge
+            v-if="hint"
+            class="shadow-lg"
+            color="error"
+            size="lg"
+            icon="i-lucide-circle-alert"
+            :label="hint"
+          />
+        </div>
 
         <div
           v-if="selectedIds.length > 1"

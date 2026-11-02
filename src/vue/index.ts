@@ -8,6 +8,7 @@ export {
   type CategoryView,
   type EditorOptions,
   type FramePatch,
+  type LiveRun,
   type MenuTarget,
   type NodeClip,
   type NodeInit,

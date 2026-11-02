@@ -28,10 +28,18 @@ const file = (path: string): VaultFile => {
   if (!f) throw new Error(`No file ${path}`);
   return f;
 };
+// A short wait in each effect, so a run can be watched (and paused) on the canvas.
+const slow = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 300));
 const effects: VertexEffects = {
-  index: { byTag: async (tag) => vault.filter((f) => f.tags.includes(tag)).map((f) => f.path) },
+  index: {
+    async byTag(tag) {
+      await slow();
+      return vault.filter((f) => f.tags.includes(tag)).map((f) => f.path);
+    },
+  },
   fs: {
     async rename(path, newName) {
+      await slow();
       const dir = path.slice(0, path.lastIndexOf("/") + 1);
       const ext = /\.[^./]*$/.exec(path)?.[0] ?? "";
       const f = file(path);
@@ -39,6 +47,7 @@ const effects: VertexEffects = {
       return f.path;
     },
     async setProperty(path, key, value) {
+      await slow();
       file(path).props[key] = value;
     },
   },
@@ -72,25 +81,25 @@ function load(doc: DocumentV1): void {
 const result = ref<RunResult>();
 const log = ref<string[]>([]);
 const error = ref<string>();
-const running = ref(false);
-async function start(): Promise<void> {
-  running.value = true;
+/** `step`: stop before the first node, as if Pause was pressed at once. */
+async function start(step = false): Promise<void> {
   error.value = undefined;
+  editor.stepping.value = step;
   try {
     const rec = record(effects);
     const doc = editor.snapshot();
-    const out = await run(vertex, doc, {
-      event: "vertex.onManual",
-      effects: rec.effects,
-      trace: "values",
-    });
+    const out = await editor.run((live) =>
+      run(vertex, doc, {
+        event: "vertex.onManual",
+        effects: rec.effects,
+        trace: "values",
+        ...live,
+      }),
+    );
     result.value = out.result;
     log.value = rec.log();
-    editor.trace.value = out.trace;
   } catch (e) {
     error.value = e instanceof CompileError ? "Fix the problems first." : String(e);
-  } finally {
-    running.value = false;
   }
 }
 function resetVault(): void {
@@ -135,11 +144,20 @@ const mode = useColorMode();
           @click="mode = mode === 'dark' ? 'light' : 'dark'"
         />
         <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-step-forward"
+          label="Step through"
+          :disabled="editor.running.value"
+          @click="start(true)"
+        />
+        <UButton
           size="sm"
           icon="i-lucide-play"
           label="Run “On Run”"
-          :loading="running"
-          @click="start"
+          :loading="editor.running.value"
+          @click="start()"
         />
       </header>
 

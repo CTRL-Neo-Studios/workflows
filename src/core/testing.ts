@@ -9,7 +9,13 @@ import type {
 } from "./document";
 import type { Language } from "./language";
 import type { LanguageManifest } from "./manifest";
-import { compile, type RunLimits, type RunResult, type TraceEvent } from "./runtime";
+import {
+  compile,
+  type RunLimits,
+  type RunOptions,
+  type RunResult,
+  type TraceEvent,
+} from "./runtime";
 import { type Analysis, validate } from "./validate";
 
 export interface RecordedCall {
@@ -145,7 +151,7 @@ export function assertValid(doc: DocumentV1, language: { manifest: LanguageManif
   return analysis;
 }
 
-export interface RunSpec<E> {
+export interface RunSpec<E> extends Pick<RunOptions<E>, "interactive" | "beforeStep" | "onTrace"> {
   /** The event node type to dispatch. */
   event: string;
   payload?: Record<string, unknown>;
@@ -168,11 +174,14 @@ export async function run<E extends object>(
   spec: RunSpec<E>,
 ): Promise<TestRun> {
   const trace: TraceEvent[] = [];
-  const { event, payload, trace: level = "nodes", ...opts } = spec;
+  const { event, payload, trace: level = "nodes", onTrace, ...opts } = spec;
   const result = await compile(doc, language).dispatch(event, payload, {
     ...opts,
     trace: level,
-    onTrace: (e) => void trace.push(e),
+    onTrace: (e) => {
+      trace.push(e);
+      onTrace?.(e);
+    },
   });
   return { result, trace };
 }

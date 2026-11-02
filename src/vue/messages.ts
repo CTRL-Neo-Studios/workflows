@@ -75,6 +75,13 @@ export interface WorkflowMessages {
   /** A return node's title when its block has several exits. */
   returnVia: (exit: string) => string;
   block: string;
+  running: string;
+  /** A stopped run, waiting before a node. */
+  pausedBefore: (node: string) => string;
+  pause: string;
+  step: string;
+  resume: string;
+  cancel: string;
   arrange: string;
   alignLeft: string;
   alignCenter: string;
@@ -161,6 +168,12 @@ export const defaultMessages: WorkflowMessages = {
   deleteAnyway: "Delete anyway",
   returnVia: (exit) => `Return · ${exit}`,
   block: "Block",
+  running: "Running…",
+  pausedBefore: (node) => `Paused before ${node}`,
+  pause: "Pause",
+  step: "Step",
+  resume: "Continue",
+  cancel: "Cancel",
   arrange: "Arrange",
   alignLeft: "Align left edges",
   alignCenter: "Align centers",

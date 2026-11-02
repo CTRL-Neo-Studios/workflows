@@ -19,7 +19,7 @@ const vertex = defineLanguage<
 >({
   id: "vertex",
   version: 1,
-  include: [std], // if, forEach, sequence, try, equals, concat, append, dictGet, …
+  include: [std], // control, operators (logic, math, compare, dates), text, lists (filter, map, sort, …), dictionaries
 })
   .type({ id: "vertex.File", label: "File", schema: { type: "string", pattern: "^/" } }) // a schema allows literals
   .capability({ id: "fs", mutates: true, label: "Modify files" })
@@ -130,7 +130,7 @@ async function start() {
   <!-- canvas, node library and inspector; or compose WorkflowCanvas, WorkflowPalette, WorkflowInspector yourself -->
   <WorkflowWorkbench :editor="editor">
     <template #toolbar><UButton label="Run" @click="start" /></template>
-    <!-- optional: replace one type's literal editor, keep the default for the rest -->
+    <!-- optional: replace one type's literal editor (on the canvas and in the inspector), keep the default for the rest -->
     <template #widget="w">
       <MyFilePicker v-if="w.type?.kind === 'con' && w.type.id === 'vertex.File'" v-bind="w" />
       <WorkflowWidget v-else v-bind="w" />
@@ -154,7 +154,11 @@ defineLanguage({ id: "notes", version: 1, include: [std] })
   });
 ```
 
-Colors (`TypeDef`, `CategoryDef`, and a node's own `color`) take a palette name (`sky`, `rose`, …) or any CSS color.
+Colors (`TypeDef`, `CategoryDef`, and a node's own `color`) take a palette name (`sky`, `rose`, …) or any CSS color. Variables and My Blocks come after categories of `order` 0 or less, so `order: 1` puts a language's own sections after them, as in Scratch.
+
+To translate a language, rewrite its manifest's strings before handing it to the editor: node `label` (keep the `{input}` placeholders) and `description`, port `label`s, `exec.labels` for exec outputs, and the category, type and capability labels.
+
+A node that works out an input once per item, like `std.filter`, reads it in a child scope where the item is its own output: `await ctx.input("keep", { scope: { item, index } })` recomputes the pure nodes behind `keep` for that item.
 
 On the canvas, dragging empty space draws a selection box; scroll, two fingers, Space+drag or the middle button pan, and ⌘/Ctrl+scroll or a pinch zooms. Shortcuts: ⌘Z / ⇧⌘Z undo and redo (every document edit except the viewport), ⌘C / ⌘X / ⌘V / ⌘D copy, cut, paste at the cursor and duplicate, ⌘A select all, Tab or a double-click opens a node search at the cursor. Dropping a wire on empty space opens that search filtered to nodes that can take it, and wires the one you pick. Right-clicking the canvas, a node, an edge or a port opens a menu; `WorkflowCanvas`'s `menu` prop can change its items, and its `#selection` slot adds buttons to the bar shown under a multi-node selection.
 
@@ -168,6 +172,17 @@ const editor = useWorkflowEditor(vertex.manifest, document, {
 Copies go to the clipboard as JSON (`parseClip` reads them back), so they paste into another document of the same language. When the clipboard can't be read (a denied permission), paste falls back to the last copy made in the app.
 
 Programs grow structure from the library and the selection bar. Variables and My Blocks in the node library create variables and blocks (functions); click or drag a variable for a Get, ⌥ for a Set; the inspector edits the declaration behind a selected node (a block's name, inputs, outputs and exits). An exec block may have several exits, and each Return names one, so a call can branch like `std.if`. Select nodes and choose Make block to move them into a new block called in their place (`extractFunction` in core does the work), or Group to frame them; dragging a group's header moves what's inside it, and the canvas menu adds sticky comments. Groups and comments live in `view`, so they don't change the program hash. Double-click a call to open its block; the breadcrumb leads back.
+
+Run through the editor to watch it on the canvas: `editor.run` hands you the `onTrace`, `signal` and `beforeStep` to spread into the run, and the canvas shows a run bar (Pause, Step, Continue, Cancel) and glows the nodes running now.
+
+```ts
+editor.stepping.value = stepThrough; // stop before the first node
+const { result } = await editor.run((live) =>
+  run(vertex, editor.snapshot(), { event: "vertex.onManual", effects, trace: "values", ...live }),
+);
+```
+
+Time spent in `beforeStep` and in the capabilities named in `interactive` (prompts, pickers) doesn't count toward `limits.timeoutMs`.
 
 ## Scripts
 

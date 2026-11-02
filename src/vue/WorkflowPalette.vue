@@ -145,7 +145,7 @@ const card =
             {{ c.label }}
           </h3>
           <!-- Variables: the declarations themselves; get and set come from dragging or clicking one. -->
-          <div v-if="c.id === 'core.variables'" class="flex flex-col gap-1.5">
+          <div v-if="c.id === 'core.variables'" class="flex flex-col gap-1.5 pt-2">
             <UDropdownMenu v-if="fn" :items="newVariableItems" size="sm">
               <UButton
                 color="neutral"
@@ -205,7 +205,7 @@ const card =
             </div>
           </div>
 
-          <div v-else class="flex flex-col gap-1.5">
+          <div v-else class="flex flex-col gap-1.5 pt-2">
             <UButton
               v-if="c.id === 'core.functions'"
               color="neutral"

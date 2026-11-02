@@ -282,10 +282,19 @@ describe("arrange", () => {
   });
 });
 
-test("categories: the language's by order (only those in use), then the built-ins, then namespaces", () => {
+test("categories: the language's by order (only those in use), built-ins after order 0, then namespaces", () => {
   const lang = defineLanguage({ id: "x", version: 1, include: [std] })
     .category({ id: "x.first", label: "First", color: "sky", order: -1 })
+    .category({ id: "x.late", label: "Late", order: 1 })
     .category({ id: "x.unused", label: "Unused" })
+    .node({
+      type: "x.after",
+      version: 1,
+      mode: "pure",
+      label: "After",
+      category: "x.late",
+      run: () => ({}),
+    })
     .node({
       type: "x.go",
       version: 1,
@@ -302,12 +311,13 @@ test("categories: the language's by order (only those in use), then the built-in
   expect(e.categories.value.map((c) => c.id)).toEqual([
     "x.first",
     "std.control",
-    "std.logic",
+    "std.operators",
     "std.text",
     "std.lists",
     "std.dictionaries",
     "core.variables",
     "core.functions",
+    "x.late",
     "ns:y",
   ]);
   expect(e.look("x.go")).toMatchObject({ color: "var(--wf-sky)", category: { label: "First" } });
@@ -385,4 +395,30 @@ test("groups and comments move and go through the node methods", () => {
   expect(e.document.value.view.positions.n5).toEqual({ x: 1, y: 2 });
   e.removeNodes([g, c]);
   expect([e.groups.value, e.comments.value]).toEqual([[], []]);
+});
+
+test("a live run stops before each node while stepping, and cancel ends it", async () => {
+  const e = editorFor();
+  const effects = {
+    index: { byTag: async () => ["/v/a.md"] },
+    fs: { rename: async (_: string, n: string) => `/v/${n}.md`, setProperty: async () => {} },
+  };
+  e.stepping.value = true;
+  const done = e.run((live) =>
+    run(vertex, e.snapshot(), { event: "vertex.onManual", effects, ...live }),
+  );
+  await vi.waitFor(() => expect(e.pausedAt.value).toBe("n1"));
+  expect(e.running.value).toBe(true);
+  e.step();
+  await vi.waitFor(() => expect(e.pausedAt.value).toBe("n3"));
+  e.cancel();
+  expect((await done).result.status).toBe("aborted");
+  expect([e.running.value, e.stepping.value, e.pausedAt.value, e.active.value.size]).toEqual([
+    false,
+    false,
+    undefined,
+    0,
+  ]);
+  // Cancelled before For Each ran, so the query it pulls from never did.
+  expect(e.trace.value.filter((x) => x.t === "enter").map((x) => x.node)).toEqual(["n1"]);
 });

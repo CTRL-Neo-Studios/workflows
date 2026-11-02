@@ -58,7 +58,7 @@ export interface RunLimits {
   steps?: number;
   /** Maximum call depth. Default 64. */
   depth?: number;
-  /** No default: runs without a timeout unless set. */
+  /** No default: runs without a timeout unless set. Time the run spends waiting on the user doesn't count. */
   timeoutMs?: number;
 }
 
@@ -69,6 +69,16 @@ export interface RunOptions<E> {
   /** Default 'off'. */
   trace?: "off" | "nodes" | "values";
   onTrace?: (event: TraceEvent) => void;
+  /**
+   * Capabilities whose calls wait on the user (prompts, pickers). Their methods are awaited, and the time spent
+   * in them doesn't count toward `timeoutMs`.
+   */
+  interactive?: readonly string[];
+  /**
+   * Awaited before each event and exec node runs, e.g. a debugger's step. The run waits for it, and that time
+   * doesn't count toward `timeoutMs`.
+   */
+  beforeStep?: (node: string) => void | Promise<void>;
 }
 
 export interface RunResult {
@@ -277,6 +287,40 @@ export function compile<E extends object>(
 /** The run is over (aborted, timed out, or finished while a stray chain was still going). */
 class Stopped extends Error {}
 
+/** `timeoutMs` as an abort, on a clock that stops while the run waits on the user. */
+class Clock {
+  readonly #controller = new AbortController();
+  readonly signal = this.#controller.signal;
+  #left: number;
+  #since = 0;
+  #timer: ReturnType<typeof setTimeout> | undefined;
+  #held = 0;
+
+  constructor(ms: number) {
+    this.#left = ms;
+    this.#run();
+  }
+
+  #run(): void {
+    this.#since = Date.now();
+    this.#timer = setTimeout(() => this.#controller.abort(), this.#left);
+  }
+
+  hold(): void {
+    if (this.#held++ > 0) return;
+    clearTimeout(this.#timer);
+    this.#left -= Date.now() - this.#since;
+  }
+
+  release(): void {
+    if (--this.#held === 0 && !this.signal.aborted) this.#run();
+  }
+
+  stop(): void {
+    clearTimeout(this.#timer);
+  }
+}
+
 /** Unwinds a call once its core.return ran; only that call's boundary catches it. */
 class Returned extends Error {}
 
@@ -348,10 +392,12 @@ class Run<E> {
   /** Document variables. */
   readonly #globals: Map<string, unknown>;
   readonly #signal: AbortSignal;
+  readonly #clock: Clock | undefined;
   readonly #maxSteps: number;
   readonly #maxDepth: number;
   readonly #trace: "off" | "nodes" | "values";
   readonly #onTrace: ((event: TraceEvent) => void) | undefined;
+  readonly #onStep: ((node: string) => void | Promise<void>) | undefined;
 
   constructor(
     opts: RunOptions<E>,
@@ -360,18 +406,49 @@ class Run<E> {
     globals: Map<string, unknown>,
   ) {
     const { signal, limits = {} } = opts;
-    const signals = [
-      signal,
-      limits.timeoutMs === undefined ? undefined : AbortSignal.timeout(limits.timeoutMs),
-    ];
-    this.#signal = AbortSignal.any(signals.filter((s) => s !== undefined));
-    this.#handlers = handlers;
+    this.#clock = limits.timeoutMs === undefined ? undefined : new Clock(limits.timeoutMs);
+    this.#signal = AbortSignal.any([signal, this.#clock?.signal].filter((s) => s !== undefined));
+    this.#handlers = new Map(handlers);
+    for (const id of opts.interactive ?? []) {
+      const handler = handlers.get(id);
+      if (typeof handler === "object" && handler !== null)
+        this.#handlers.set(id, this.#waitingOn(handler));
+    }
     this.#functions = functions;
     this.#globals = globals;
     this.#maxSteps = limits.steps ?? 100_000;
     this.#maxDepth = limits.depth ?? 64;
     this.#trace = opts.onTrace ? (opts.trace ?? "off") : "off";
     this.#onTrace = opts.onTrace;
+    this.#onStep = opts.beforeStep;
+  }
+
+  /** Runs `wait` with the timeout's clock stopped. */
+  async #paused<T>(wait: () => T | Promise<T>): Promise<T> {
+    this.#clock?.hold();
+    try {
+      return await wait();
+    } finally {
+      this.#clock?.release();
+    }
+  }
+
+  /** An interactive capability's handler, every method (at any depth) called with the clock stopped. */
+  #waitingOn(target: object): object {
+    return new Proxy(target, {
+      get: (obj, key, receiver) => {
+        const value: unknown = Reflect.get(obj, key, receiver);
+        if (typeof value === "function")
+          return (...args: unknown[]) => this.#paused(() => Reflect.apply(value, obj, args));
+        return typeof value === "object" && value !== null ? this.#waitingOn(value) : value;
+      },
+    });
+  }
+
+  /** `beforeStep`, unless the node won't run anyway. */
+  async #beforeStep(node: CompiledNode<E>, frame: Frame): Promise<void> {
+    const hook = this.#onStep;
+    if (hook && !this.fatal && !frame.returned) await this.#paused(() => hook(node.id));
   }
 
   #emit(event: TraceEvent): void {
@@ -442,6 +519,7 @@ class Run<E> {
     } finally {
       // A chain still running (e.g. the other side of a concurrent fire) stops at its next step.
       this.fatal ??= new Stopped("finished");
+      this.#clock?.stop();
     }
   }
 
@@ -452,6 +530,7 @@ class Run<E> {
     values: Record<string, unknown>,
   ): Promise<void> {
     const depth = root.frame.depth;
+    await this.#beforeStep(node, root.frame);
     this.#step(node, root.frame);
     this.#emit({ t: "enter", node: node.id, depth });
     for (const port of node.outputs) {
@@ -547,6 +626,7 @@ class Run<E> {
   /** One exec activation (§8.2): one step, then `run`. Returns the exec output to continue on. */
   async #activate(node: CompiledNode<E>, scope: Scope<E>): Promise<string | undefined> {
     const frame = scope.frame;
+    await this.#beforeStep(node, frame);
     this.#step(node, frame);
     this.#emit({ t: "enter", node: node.id, depth: frame.depth });
     const cache: Cache<E> = new Map();
@@ -560,8 +640,20 @@ class Run<E> {
       return port;
     }
     let firing = false;
+    /** A child scope where `values` are this node's outputs. */
+    const scoped = (values: Record<string, unknown>): Scope<E> => {
+      const child = new Scope<E>(scope, frame);
+      for (const [p, value] of Object.entries(values)) {
+        child.set(node, p, value);
+        this.#emit({ t: "value", node: node.id, port: p, value });
+      }
+      return child;
+    };
     const ctx: ExecContext<E> = {
-      input: (port) => this.#input(node, port, scope, cache),
+      input: (port, opts) =>
+        opts
+          ? this.#input(node, port, scoped(opts.scope), new Map())
+          : this.#input(node, port, scope, cache),
       inputs: () => this.#inputs(node, scope, cache),
       output: (port, value) => {
         if (!node.outputs.includes(port)) throw new TypeError(`${node.id} has no output '${port}'`);
@@ -581,13 +673,12 @@ class Run<E> {
         firing = true;
         this.#emit({ t: "fire", node: node.id, port, depth: frame.depth });
         try {
-          const child = opts?.scope === undefined ? scope : new Scope<E>(scope, frame);
-          if (opts?.scope !== undefined && opts.scope !== true) {
-            for (const [p, value] of Object.entries(opts.scope)) {
-              child.set(node, p, value);
-              this.#emit({ t: "value", node: node.id, port: p, value });
-            }
-          }
+          const child =
+            opts?.scope === undefined
+              ? scope
+              : opts.scope === true
+                ? new Scope<E>(scope, frame)
+                : scoped(opts.scope);
           await this.#chain(node.next.get(port), child);
         } finally {
           firing = false;

@@ -77,7 +77,14 @@ export interface ExecContext<
   O = Record<string, unknown>,
   X extends string = string,
 > {
-  input<P extends keyof I & string>(port: P): Promise<I[P]>;
+  /**
+   * Reads an input. With `scope`, reads it in a child scope where those values are this node's outputs,
+   * recomputing the pure nodes it reads: once per item, for a filter or a map.
+   */
+  input<P extends keyof I & string>(
+    port: P,
+    opts?: { scope: Record<string, unknown> },
+  ): Promise<I[P]>;
   inputs(): Promise<I>;
   output<P extends keyof O & string>(port: P, value: O[P]): void;
   /**

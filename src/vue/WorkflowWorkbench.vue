@@ -84,7 +84,9 @@ const card =
         />
       </div>
       <div v-if="inspector" :class="[card, 'overflow-y-auto']">
-        <WorkflowInspector :editor="editor" />
+        <WorkflowInspector :editor="editor">
+          <template v-if="$slots.widget" #widget="w"><slot name="widget" v-bind="w" /></template>
+        </WorkflowInspector>
         <slot name="inspector" />
       </div>
     </div>

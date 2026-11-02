@@ -2,6 +2,7 @@ import {
   computed,
   ref,
   shallowRef,
+  triggerRef,
   toValue,
   watch,
   type ComputedRef,
@@ -75,6 +76,23 @@ export interface WorkflowEditor {
   /** Trace of the last run, shown on the canvas. Cleared when the program changes. */
   readonly trace: ShallowRef<readonly TraceEvent[]>;
   readonly traced: ComputedRef<{ nodes: Map<string, NodeTrace>; edges: Set<string> }>;
+  /**
+   * Runs `start` live: it gets the `onTrace`, `signal` and `beforeStep` to pass to `dispatch` (or core's `run`).
+   * `trace` fills in as the run goes (once per frame), `active` holds the nodes running now, and `cancel`,
+   * `stepping` and `step` control it. Resolves with what `start` returns; throws if a run is already going.
+   */
+  run<R>(start: (live: LiveRun) => Promise<R>): Promise<R>;
+  readonly running: Ref<boolean>;
+  /** Nodes entered and not yet left, during a live run. */
+  readonly active: ShallowRef<ReadonlySet<string>>;
+  /** While true, a live run stops before each event and exec node; set it before or during the run. */
+  readonly stepping: Ref<boolean>;
+  /** The node a stopped run waits before; the canvas brings it into view. */
+  readonly pausedAt: Ref<string | undefined>;
+  /** Lets a stopped run go on: to its next node while `stepping`, else to the end. */
+  step(): void;
+  /** Aborts the live run: it ends `aborted`. */
+  cancel(): void;
   /** Where a node added without a position goes; the canvas keeps it at the center of the view. */
   readonly center: Ref<XY>;
   /** The latest request to bring a node into view; a new object each time, so asking twice still triggers. */
@@ -194,6 +212,13 @@ export interface WorkflowEditor {
   setRef(node: string, ref: string | undefined): void;
   /** Moves nodes of the current graph into a new block and calls it in their place (`extractFunction`). */
   makeBlock(nodes: Iterable<string>): { call: string } | { error: string };
+}
+
+/** What `editor.run` hands its callback: spread it into the run's options. */
+export interface LiveRun {
+  onTrace(event: TraceEvent): void;
+  signal: AbortSignal;
+  beforeStep(node: string): void | Promise<void>;
 }
 
 export type PortSide = "inputs" | "outputs" | "exits";
@@ -576,6 +601,75 @@ export function useWorkflowEditor(
     return { nodes, edges: taken };
   });
 
+  const focus = (node: string): void => {
+    const doc = document.value;
+    const fn = doc.program.functions.find((f) => f.graph.nodes.some((n) => n.id === node));
+    graphId.value = fn?.id ?? "main";
+    focused.value = { node };
+  };
+
+  // Live runs. Events are kept in one array, shown at most once per frame: a run can make thousands a second.
+  const running = ref(false);
+  const active = shallowRef<ReadonlySet<string>>(new Set());
+  const stepping = ref(false);
+  const pausedAt = ref<string>();
+  let controller: AbortController | undefined;
+  let resume: (() => void) | undefined;
+  const step = (): void => {
+    const go = resume;
+    resume = undefined;
+    pausedAt.value = undefined;
+    go?.();
+  };
+  const run = async <R>(start: (live: LiveRun) => Promise<R>): Promise<R> => {
+    if (running.value) throw new Error("A run is already going");
+    running.value = true;
+    controller = new AbortController();
+    const events: TraceEvent[] = [];
+    const open = new Map<string, number>();
+    trace.value = events;
+    let queued = false;
+    const show = (): void => {
+      queued = false;
+      triggerRef(trace);
+      active.value = new Set(open.keys());
+    };
+    const later =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (f: () => void) => setTimeout(f, 16);
+    try {
+      return await start({
+        signal: controller.signal,
+        onTrace(event) {
+          events.push(event);
+          if (event.t === "enter") open.set(event.node, (open.get(event.node) ?? 0) + 1);
+          else if (event.t === "exit") {
+            const n = (open.get(event.node) ?? 1) - 1;
+            if (n) open.set(event.node, n);
+            else open.delete(event.node);
+          }
+          if (!queued) later(show);
+          queued = true;
+        },
+        beforeStep(node) {
+          if (!stepping.value || controller?.signal.aborted) return undefined;
+          show();
+          pausedAt.value = node;
+          focus(node);
+          return new Promise<void>((r) => (resume = r));
+        },
+      });
+    } finally {
+      step();
+      open.clear();
+      show();
+      running.value = false;
+      stepping.value = false;
+      controller = undefined;
+    }
+  };
+
   const snapshot = (): DocumentV1 => clone(document.value);
   const versionOf = (type: string): number =>
     manifest.nodes.find((m) => m.type === type)?.version ?? 1;
@@ -601,8 +695,8 @@ export function useWorkflowEditor(
     ...toValue(options.messages),
   }));
 
-  // Categories: the language's, sorted by `order` (ties keep declaration order), then the built-in ones for
-  // variables and functions, then one per namespace for uncategorized nodes.
+  // Categories: the language's, sorted by `order` (ties keep declaration order), with the built-in ones for
+  // variables and functions after those of order 0 or less, then one per namespace for uncategorized nodes.
   const declared = (manifest.categories ?? []).toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const builtIn = computed(() => ({
     variables: view(
@@ -713,10 +807,13 @@ export function useWorkflowEditor(
       "core.variables",
       "core.functions",
     ]);
+    const toView = (c: (typeof declared)[number]) => view(c.id, c.label, c.color, c.icon);
+    const early = declared.filter((c) => (c.order ?? 0) <= 0);
     const all = [
-      ...declared.map((c) => view(c.id, c.label, c.color, c.icon)),
+      ...early.map(toView),
       builtIn.value.variables,
       builtIn.value.functions,
+      ...declared.slice(early.length).map(toView),
     ];
     // Namespace groups, in the order their nodes appear.
     for (const e of entries.value) {
@@ -753,7 +850,7 @@ export function useWorkflowEditor(
     },
     { deep: true },
   );
-  const step = (from: ShallowRef<string[]>, to: ShallowRef<string[]>): void => {
+  const travel = (from: ShallowRef<string[]>, to: ShallowRef<string[]>): void => {
     const target = from.value.at(-1);
     if (target === undefined) return;
     from.value = from.value.slice(0, -1);
@@ -963,6 +1060,16 @@ export function useWorkflowEditor(
     problems,
     trace,
     traced,
+    run,
+    running,
+    active,
+    stepping,
+    pausedAt,
+    step,
+    cancel() {
+      controller?.abort();
+      step();
+    },
     center,
     focused,
     ports: (node) => analysis.value.ports(node),
@@ -1006,8 +1113,8 @@ export function useWorkflowEditor(
 
     canUndo: computed(() => past.value.length > 0),
     canRedo: computed(() => future.value.length > 0),
-    undo: () => step(past, future),
-    redo: () => step(future, past),
+    undo: () => travel(past, future),
+    redo: () => travel(future, past),
 
     copy,
     paste,
@@ -1103,12 +1210,7 @@ export function useWorkflowEditor(
       }
     },
 
-    focus(node) {
-      const doc = document.value;
-      const fn = doc.program.functions.find((f) => f.graph.nodes.some((n) => n.id === node));
-      graphId.value = fn?.id ?? "main";
-      focused.value = { node };
-    },
+    focus,
 
     groups: computed(() => document.value.view.groups.filter((g) => g.graph === graphId.value)),
     comments: computed(() =>

@@ -5,7 +5,7 @@ import UButton from "@nuxt/ui/components/Button.vue";
 import UIcon from "@nuxt/ui/components/Icon.vue";
 import { computed } from "vue";
 import { formatType, parseLabel } from "../core";
-import type { WorkflowEditor } from "./editor";
+import type { WidgetSlotProps, WorkflowEditor } from "./editor";
 import { formatValue, MODE_STYLES } from "./theme";
 import WorkflowDiagnostics from "./WorkflowDiagnostics.vue";
 import WorkflowSignature from "./WorkflowSignature.vue";
@@ -15,6 +15,10 @@ import WorkflowWidget from "./WorkflowWidget.vue";
 // The selected node's details and inputs, and the declaration behind a variable or block node; with nothing
 // selected, the open block's signature and the workflow's capabilities and problems.
 const { editor } = defineProps<{ editor: WorkflowEditor }>();
+defineSlots<{
+  /** Replaces an input's editor, like `WorkflowCanvas`'s. */
+  widget?(props: WidgetSlotProps): unknown;
+}>();
 const m = editor.messages;
 
 const selected = computed(() => editor.selection.value);
@@ -133,10 +137,13 @@ const tint = computed(() => (look.value.color ? { "--wf-cat": look.value.color }
             :label="`${editor.title(source(name)!.node)} · ${source(name)!.port}`"
             @click="editor.focus(source(name)!.node)"
           />
-          <WorkflowWidget
+          <slot
             v-else-if="editor.widgetFor(node.id, name)"
+            name="widget"
             v-bind="editor.widgetFor(node.id, name)!"
-          />
+          >
+            <WorkflowWidget v-bind="editor.widgetFor(node.id, name)!" />
+          </slot>
         </div>
       </section>
 

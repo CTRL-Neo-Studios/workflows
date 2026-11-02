@@ -148,7 +148,7 @@ describe("§10 worked example", () => {
   test("timeoutMs aborts even when an effect ignores the signal", async () => {
     const impl = handlers();
     impl.index.byTag = async () => {
-      // Real clock on purpose: AbortSignal.timeout runs on the platform timer, which fake timers don't drive.
+      // Real clock on purpose: the timeout runs on the platform timer and Date.now.
       await new Promise((resolve) => setTimeout(resolve, 30));
       return ["/v/a.md"];
     };
@@ -157,6 +157,51 @@ describe("§10 worked example", () => {
       event,
       effects: rec.effects,
       limits: { timeoutMs: 5 },
+    });
+    expect(result.status).toBe("aborted");
+    expect(rec.log()).toEqual(["index.byTag(draft)"]);
+  });
+
+  test("time in interactive capability calls doesn't count toward timeoutMs", async () => {
+    const impl = handlers();
+    impl.index.byTag = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return ["/v/a.md"];
+    };
+    const { result } = await run(vertex, archiveDrafts(), {
+      event,
+      effects: impl,
+      limits: { timeoutMs: 20 },
+      interactive: ["index"],
+    });
+    expect(result.status).toBe("ok");
+  });
+
+  test("beforeStep runs before each event and exec node, and its waits don't count either", async () => {
+    const seen: string[] = [];
+    const { result } = await run(vertex, archiveDrafts(), {
+      event,
+      effects: handlers(),
+      limits: { timeoutMs: 20 },
+      beforeStep: async (node) => {
+        seen.push(node);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      },
+    });
+    expect(result.status).toBe("ok");
+    expect(seen).toEqual(["n1", "n3", "n5", "n7", "n5", "n7"]);
+  });
+
+  test("aborting while beforeStep waits stops before that node", async () => {
+    const controller = new AbortController();
+    const rec = record(handlers());
+    const { result } = await run(vertex, archiveDrafts(), {
+      event,
+      effects: rec.effects,
+      signal: controller.signal,
+      beforeStep: (node) => {
+        if (node === "n5") controller.abort();
+      },
     });
     expect(result.status).toBe("aborted");
     expect(rec.log()).toEqual(["index.byTag(draft)"]);
