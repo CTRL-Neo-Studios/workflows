@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UInput from "@nuxt/ui/components/Input.vue";
 import UInputNumber from "@nuxt/ui/components/InputNumber.vue";
+import UInputTags from "@nuxt/ui/components/InputTags.vue";
 import USelect from "@nuxt/ui/components/Select.vue";
 import USwitch from "@nuxt/ui/components/Switch.vue";
 import { computed, ref } from "vue";
@@ -18,6 +19,8 @@ const kind = computed(() => {
   if (s.type === "boolean") return "boolean";
   if (s.type === "number" || s.type === "integer") return "number";
   if (s.type === "string") return "string";
+  if (s.type === "array" && (s.items as { type?: unknown } | undefined)?.type === "string")
+    return "tags";
   return "json";
 });
 const shown = (v: Json | undefined): string =>
@@ -74,6 +77,15 @@ function json(text: string): void {
     size="xs"
     :model-value="(value ?? fallback) === true"
     @update:model-value="update($event)"
+  />
+  <!-- Emptying the list unsets the literal, like clearing the text input. -->
+  <UInputTags
+    v-else-if="kind === 'tags'"
+    size="xs"
+    class="min-w-32 max-w-64"
+    :model-value="Array.isArray(value) ? (value as string[]) : []"
+    :placeholder="Array.isArray(fallback) ? fallback.join(', ') : ''"
+    @update:model-value="update($event.length ? $event : undefined)"
   />
   <USelect
     v-else-if="kind === 'enum'"

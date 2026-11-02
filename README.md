@@ -139,6 +139,8 @@ async function start() {
 </template>
 ```
 
+`WorkflowWidget` is the default literal editor, picked from the type's schema: text, number, switch, a select for an `enum`, chips for a list of text, and JSON text for anything else.
+
 `analysis` reruns `validate` on every change. A drag that would add a wiring or type error is refused, and the reason is shown. Wiring a used data input or exec output replaces its edge. Nodes follow the host's Nuxt UI theme; port and wire colors are `--wf-*` CSS variables. `bun run play` opens a playground with the §10 language and an in-memory vault.
 
 Languages group their nodes into categories, which give the node library its sections and the nodes their header color. A label can embed inputs, which the node shows inline as a sentence:
