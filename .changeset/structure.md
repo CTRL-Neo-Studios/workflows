@@ -1,0 +1,7 @@
+---
+"@type32/workflows": minor
+---
+
+Structure: groups, comments, variables and blocks. Core: named exits (`FunctionDecl.exits`; a `core.return`'s `ref` names its exit; exec functions may have several returns), `Analysis.references(id)`, `extractFunction` (make block from selection) and `nextId`. Document view: `Group` is now a rectangle (`x`, `y`, `width`, `height`; `nodes` removed) and `view.comments` holds sticky notes (`Comment`, `Frame`). `Json` lists `string` first, so Vue components no longer turn an empty-string literal into `true`.
+
+Vue: group frames (drag carries what's inside, rename, color, resize) and comments on the canvas; Variables and My Blocks sections in the library with New variable / New block, ⌥ for a Set; `WorkflowVariable`, `WorkflowSignature` and `WorkflowTypeSelect` editors, shown in the inspector for a selected get/set/call/entry/return; a breadcrumb inside blocks, double-click a call to open it; Find references, Go to definition and Make block in the node menu; Group and Make block in the selection bar, now above the controls. Editor: `groups`, `comments`, `addGroup`, `addComment`, `updateFrame`, `addVariable`, `variable`, `updateVariable`, `removeVariable`, `addFunction`, `updateFunction`, `removeFunction`, `addPort`, `renamePort`, `setPortType`, `removePort`, `setRef`, `makeBlock`, `title`; the node methods take group and comment ids; the Variables and My Blocks categories always show. Message `openBlock` is now `goToDefinition`, plus new ones for the added controls.
